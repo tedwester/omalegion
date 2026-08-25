@@ -1,0 +1,92 @@
+import QtQuick
+import qs.Commons
+import qs.Ui
+
+BorderSurface {
+  id: root
+
+  property string title: ""
+  property string description: ""
+  property bool checked: false
+  property bool enabled: true
+  property color foreground: Color.foreground
+  property color dim: Qt.darker(foreground, 1.45)
+  property color accentColor: Color.accent
+  property string fontFamily: Style.font.family
+
+  signal toggled
+
+  width: parent ? parent.width : implicitWidth
+  implicitHeight: row.implicitHeight + Style.space(12)
+  color: Style.hoverFillFor(foreground, foreground)
+  borderSpec: Border.controlSpec("normal", dim, accentColor)
+  radius: Style.cornerRadius
+  opacity: enabled ? 1 : 0.55
+
+  Item {
+    id: row
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.top: parent.top
+    anchors.margins: Style.space(8)
+    implicitHeight: Math.max(labels.implicitHeight, toggle.implicitHeight)
+
+    Column {
+      id: labels
+      anchors.left: parent.left
+      anchors.right: toggle.left
+      anchors.rightMargin: Style.space(10)
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.space(2)
+
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        text: root.title
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        font.bold: true
+        wrapMode: Text.Wrap
+      }
+
+      Text {
+        visible: root.description !== ""
+        textFormat: Text.PlainText
+        width: parent.width
+        text: root.description
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.Wrap
+      }
+    }
+
+    Rectangle {
+      id: toggle
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      width: Style.space(36)
+      height: Style.space(20)
+      radius: height / 2
+      color: root.checked ? root.accentColor : Qt.darker(root.dim, 1.5)
+
+      Rectangle {
+        width: parent.height - Style.space(4)
+        height: width
+        radius: width / 2
+        color: root.foreground
+        x: root.checked ? parent.width - width - Style.space(2) : Style.space(2)
+        anchors.verticalCenter: parent.verticalCenter
+        Behavior on x { NumberAnimation { duration: 150 } }
+      }
+
+      MouseArea {
+        anchors.fill: parent
+        enabled: root.enabled
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.toggled()
+      }
+    }
+  }
+}

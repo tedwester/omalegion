@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
+.env
+
+# Quickshell / QML caches
+*.qmlc
+.qmlcache/
+
+# Editor and OS junk
+.DS_Store
+*.swp
+*.swo
+*~
+*.tmp
+.idea/
+.vscode/
+
+# Local test / scratch
+/tests/scratch/
+.local/

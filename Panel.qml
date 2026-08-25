@@ -413,7 +413,7 @@ Panel {
         }
 
         MiscTab {
-          visible: root.activeTab === "misc."
+          visible: root.activeTab === "misc"
           height: visible ? implicitHeight : 0
           width: parent.width
           monochromeBarIcon: root.monochromeBarIcon

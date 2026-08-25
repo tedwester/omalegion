@@ -63,9 +63,6 @@ unrelated Quickshell setup.
 
 ## Installation
 
-Replace the repository URL below with your public GitHub URL once the repo is
-published.
-
 ```bash
 omarchy plugin add https://github.com/tedwester/omalegion.git --enable --yes
 ```

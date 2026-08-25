@@ -24,7 +24,6 @@ from legion import (  # noqa: E402
     set_fan_mode,
     set_fan_speed,
     set_fn_lock,
-    set_touchpad,
     set_gpu_mode,
     set_gpu_oc,
     set_overnight,
@@ -78,8 +77,6 @@ def dispatch(argv: list[str]) -> dict:
         return set_usb_charging(_flag(arg))
     if action == "--set-fn-lock" and arg:
         return set_fn_lock(_flag(arg))
-    if action == "--set-touchpad" and arg:
-        return set_touchpad(_flag(arg))
     if action == "--set-backlight" and arg:
         return set_backlight(int(arg))
     if action == "--set-gpu-mode" and arg:

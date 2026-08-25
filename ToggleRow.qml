@@ -65,31 +65,21 @@ BorderSurface {
       }
     }
 
-    Rectangle {
+    ToggleSwitch {
       id: toggle
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
-      width: Style.space(36)
-      height: Style.space(20)
-      radius: height / 2
-      color: root.checked ? root.accentColor : Qt.darker(root.dim, 1.5)
-
-      Rectangle {
-        width: parent.height - Style.space(4)
-        height: width
-        radius: width / 2
-        color: root.foreground
-        x: root.checked ? parent.width - width - Style.space(2) : Style.space(2)
-        anchors.verticalCenter: parent.verticalCenter
-        Behavior on x { NumberAnimation { duration: 150 } }
-      }
-
-      MouseArea {
-        anchors.fill: parent
-        enabled: root.enabled
-        cursorShape: Qt.PointingHandCursor
-        onClicked: root.toggled()
-      }
+      checked: root.checked
+      foreground: root.foreground
+      accent: root.accentColor
+      interactive: false
     }
+  }
+
+  MouseArea {
+    anchors.fill: parent
+    enabled: root.enabled
+    cursorShape: Qt.PointingHandCursor
+    onClicked: root.toggled()
   }
 }

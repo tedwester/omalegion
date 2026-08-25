@@ -139,7 +139,6 @@ Panel {
               || (res.overnight !== undefined ? (res.overnight ? "Overnight charging on" : "Overnight charging off")
               : res.usb_charging !== undefined ? (res.usb_charging ? "Always On USB on" : "Always On USB off")
               : res.fn_lock !== undefined ? (res.fn_lock ? "Fn Lock on" : "Fn Lock off")
-              : res.touchpad !== undefined ? (res.touchpad ? "Trackpad on" : "Trackpad off")
               : res.gpu_oc !== undefined ? (res.gpu_oc ? "GPU overclock on" : "GPU overclock off")
               : res.dgpu ? "dGPU suspend requested"
               : res.watts !== undefined ? res.watts + " W"
@@ -436,13 +435,11 @@ Panel {
           visible: root.activeTab === "misc"
           height: visible ? implicitHeight : 0
           width: parent.width
-          d: root.currentData
           monochromeBarIcon: root.monochromeBarIcon
           foreground: root.foreground
           dim: root.dim
           fontFamily: root.fontFamily
           onMonochromeBarIconToggled: root.toggleMonochromeBarIcon()
-          onCommandRequested: function(args) { root.execCommand(args) }
         }
 
         Text {

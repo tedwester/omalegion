@@ -53,7 +53,6 @@ The bar and panel logo is from
 ### Misc
 
 - Monochrome bar icon toggle.
-- Trackpad on/off toggle (same as the laptop touchpad key).
 - Plugin version and quick links.
 
 ## Requirements

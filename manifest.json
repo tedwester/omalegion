@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "tedwester.legion",
   "name": "Legion Toolkit",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "tedwester",
   "license": "MIT",
   "description": "Lenovo Legion control center for Omarchy. Power modes synced with the laptop and battery panel, GPU working mode, battery charge modes, always-on USB, and cooling.",

@@ -26,6 +26,18 @@
       "gpu"
     ],
     "defaultSection": "right",
-    "allowMultiple": false
+    "allowMultiple": false,
+    "defaults": {
+      "monochromeBarIcon": false
+    },
+    "schema": [
+      {
+        "key": "monochromeBarIcon",
+        "type": "boolean",
+        "label": "Monochrome bar icon",
+        "defaultValue": false,
+        "description": "Tint the bar logo to match other shell icons. The power-mode indicator dot stays colored."
+      }
+    ]
   }
 }

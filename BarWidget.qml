@@ -12,6 +12,7 @@ BarWidget {
   readonly property bool popoutSwitchClosing: panelItem
     ? panelItem.popoutSwitchClosing === true
     : false
+  readonly property bool monochromeBarIcon: setting("monochromeBarIcon", false) === true
 
   function injectPanel() {
     var target = panelItem
@@ -52,8 +53,10 @@ BarWidget {
     var temp = data.thermals && data.thermals.cpu_package ? data.thermals.cpu_package : 0
     var mode = data.power && data.power.current_id ? data.power.current_id : ""
     if (temp >= 90) return root.bar ? root.bar.urgent : Color.urgent
-    if (mode === "performance" || mode === "extreme") return Color.accent
-    if (mode === "quiet") return "#87c095"
+    if (mode === "extreme" || mode === "custom") return "#b57bff"
+    if (mode === "quiet") return "#4d9fff"
+    if (mode === "balanced") return "#ffffff"
+    if (mode === "performance") return Color.accent
     return root.bar ? root.bar.barForeground : Color.foreground
   }
 
@@ -93,16 +96,20 @@ BarWidget {
     onTriggered: root.refresh()
   }
 
-  WidgetButton {
+  BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "Legion"
-    fontSize: Style.font.bodySmall
     active: root.opened
     tooltipText: root.tooltipText()
-    horizontalMargin: 8
-    foreground: root.statusColor()
+    iconComponent: Component {
+      LegionIcon {
+        iconSize: Style.bar.iconCanvas
+        statusColor: root.statusColor()
+        monochrome: root.monochromeBarIcon
+        tintColor: root.bar ? root.bar.barForeground : Color.foreground
+      }
+    }
 
     onPressed: function(b) {
       if (!root.bar) return

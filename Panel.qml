@@ -32,8 +32,23 @@ Panel {
     { label: "Power", key: "power" },
     { label: "GPU", key: "gpu" },
     { label: "Battery", key: "battery" },
-    { label: "Cooling", key: "cooling" }
+    { label: "Cooling", key: "cooling" },
+    { label: "Misc.", key: "misc" }
   ]
+
+  readonly property bool monochromeBarIcon: setting("monochromeBarIcon", false) === true
+
+  function persistPluginSetting(name, value) {
+    if (!root.bar || !root.bar.shell || typeof root.bar.shell.updateEntryInline !== "function") return
+    var entry = { id: root.moduleName }
+    for (var key in settings) if (key !== "id" && key !== name) entry[key] = settings[key]
+    entry[name] = value
+    root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
+  function toggleMonochromeBarIcon() {
+    persistPluginSetting("monochromeBarIcon", !root.monochromeBarIcon)
+  }
 
   function refresh() {
     if (pollProc.running) return
@@ -174,22 +189,12 @@ Panel {
           width: parent.width
           implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight)
 
-          Text {
+          LegionIcon {
             id: heroIcon
-            textFormat: Text.PlainText
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: "󰍹"
-            color: {
-              var t = root.currentData && root.currentData.thermals ? root.currentData.thermals.cpu_package : 0
-              var mode = root.currentData && root.currentData.power ? root.currentData.power.current_id : ""
-              if (t >= 90) return root.urgent
-              if (mode === "performance" || mode === "extreme") return Color.accent
-              if (mode === "quiet") return "#87c095"
-              return Color.accent
-            }
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.display
+            iconSize: Style.space(24)
+            showStatusBadge: false
           }
 
           Column {
@@ -405,6 +410,17 @@ Panel {
           urgent: root.urgent
           fontFamily: root.fontFamily
           run: root.execCommand
+        }
+
+        MiscTab {
+          visible: root.activeTab === "misc."
+          height: visible ? implicitHeight : 0
+          width: parent.width
+          monochromeBarIcon: root.monochromeBarIcon
+          foreground: root.foreground
+          dim: root.dim
+          fontFamily: root.fontFamily
+          onMonochromeBarIconToggled: root.toggleMonochromeBarIcon()
         }
 
         Text {

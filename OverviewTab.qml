@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import qs.Commons
 import qs.Ui
 
@@ -23,13 +24,15 @@ Column {
   width: parent ? parent.width : implicitWidth
   spacing: Style.space(10)
 
-  Grid {
+  GridLayout {
     columns: 2
     width: parent.width
-    spacing: Style.space(8)
+    columnSpacing: Style.space(8)
+    rowSpacing: Style.space(8)
 
     StatusCard {
-      width: (parent.width - parent.spacing) / 2
+      Layout.fillWidth: true
+      Layout.fillHeight: true
       foreground: root.foreground
       dim: root.dim
       accentColor: root.accentColor
@@ -40,7 +43,8 @@ Column {
     }
 
     StatusCard {
-      width: (parent.width - parent.spacing) / 2
+      Layout.fillWidth: true
+      Layout.fillHeight: true
       foreground: root.foreground
       dim: root.dim
       accentColor: root.accentColor
@@ -52,7 +56,8 @@ Column {
     }
 
     StatusCard {
-      width: (parent.width - parent.spacing) / 2
+      Layout.fillWidth: true
+      Layout.fillHeight: true
       foreground: root.foreground
       dim: root.dim
       accentColor: root.accentColor
@@ -63,7 +68,8 @@ Column {
     }
 
     StatusCard {
-      width: (parent.width - parent.spacing) / 2
+      Layout.fillWidth: true
+      Layout.fillHeight: true
       foreground: root.foreground
       dim: root.dim
       accentColor: root.accentColor
@@ -104,12 +110,19 @@ Column {
 
         Text {
           anchors.right: parent.right
+          anchors.left: batLabel.right
+          anchors.leftMargin: Style.space(8)
+          anchors.verticalCenter: parent.verticalCenter
           textFormat: Text.PlainText
+          horizontalAlignment: Text.AlignRight
           text: (battery.ac_connected ? "Plugged in · " : "On battery · ") + (battery.mode_label || "") + " · " + (battery.percent !== undefined && battery.percent !== null ? battery.percent + "%" : "--")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           font.bold: true
+          wrapMode: Text.Wrap
+          elide: Text.ElideRight
+          maximumLineCount: 2
         }
       }
 

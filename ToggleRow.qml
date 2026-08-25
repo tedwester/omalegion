@@ -47,7 +47,8 @@ BorderSurface {
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
-        wrapMode: Text.Wrap
+        elide: Text.ElideRight
+        maximumLineCount: 1
       }
 
       Text {
@@ -59,6 +60,8 @@ BorderSurface {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         wrapMode: Text.Wrap
+        elide: Text.ElideRight
+        maximumLineCount: 2
       }
     }
 

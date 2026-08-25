@@ -40,6 +40,7 @@ BorderSurface {
     anchors.right: applyBtn.left
     anchors.rightMargin: Style.space(8)
     anchors.top: parent.top
+    anchors.bottom: parent.bottom
     anchors.margins: Style.space(8)
     spacing: Style.space(2)
 
@@ -51,7 +52,8 @@ BorderSurface {
       font.family: root.fontFamily
       font.pixelSize: Style.font.body
       font.bold: true
-      wrapMode: Text.Wrap
+      elide: Text.ElideRight
+      maximumLineCount: 1
     }
 
     Text {
@@ -63,6 +65,8 @@ BorderSurface {
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
       wrapMode: Text.Wrap
+      elide: Text.ElideRight
+      maximumLineCount: 2
     }
   }
 

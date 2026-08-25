@@ -26,6 +26,7 @@ Panel {
   property string lastUpdateTime: ""
   property string activeTab: "overview"
   property string notice: ""
+  property bool noticeIsError: false
 
   readonly property var tabList: [
     { label: "Overview", key: "overview" },
@@ -79,8 +80,19 @@ Panel {
     }
   }
 
-  function flash(text) {
+  function flash(text, isError) {
     root.notice = text
+    root.noticeIsError = isError === true
+    noticeTimer.interval = 2500
+    noticeTimer.restart()
+  }
+
+  function copyToClipboard(text) {
+    if (!text) return
+    Quickshell.execDetached(["wl-copy", "--", text])
+    root.notice = "Copied to clipboard"
+    root.noticeIsError = false
+    noticeTimer.interval = 1200
     noticeTimer.restart()
   }
 
@@ -135,7 +147,7 @@ Panel {
             )
             Qt.callLater(root.refresh)
           } else if (res.status === "error") {
-            root.flash(res.message || "Unable to apply")
+            root.flash(res.message || "Unable to apply", true)
           }
         } catch (e) {
           console.log("legion control parse error:", e)
@@ -291,7 +303,7 @@ Panel {
           width: parent.width
           implicitHeight: noticeText.implicitHeight + Style.space(12)
           color: "transparent"
-          borderSpec: Border.controlSpec("focus", Color.accent, Color.accent)
+          borderSpec: Border.controlSpec("focus", root.noticeIsError ? root.urgent : Color.accent, root.noticeIsError ? root.urgent : Color.accent)
           radius: Style.cornerRadius
 
           Text {
@@ -303,12 +315,19 @@ Panel {
             anchors.margins: Style.space(6)
             width: parent.width - Style.space(12)
             text: root.notice
-            color: Color.accent
+            color: root.noticeIsError ? root.urgent : Color.accent
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
             font.bold: true
             wrapMode: Text.Wrap
             horizontalAlignment: Text.AlignHCenter
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            enabled: root.noticeIsError
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: root.copyToClipboard(root.notice)
           }
         }
 

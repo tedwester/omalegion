@@ -94,6 +94,7 @@ Column {
           font.pixelSize: Style.font.body
           font.bold: true
           elide: Text.ElideRight
+          maximumLineCount: 1
         }
 
         BorderSurface {
@@ -137,6 +138,8 @@ Column {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         wrapMode: Text.Wrap
+        elide: Text.ElideRight
+        maximumLineCount: 2
       }
 
       Text {
@@ -148,6 +151,8 @@ Column {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         wrapMode: Text.Wrap
+        elide: Text.ElideRight
+        maximumLineCount: 2
       }
 
       Column {
@@ -175,6 +180,7 @@ Column {
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
             elide: Text.ElideRight
+            maximumLineCount: 1
           }
         }
       }

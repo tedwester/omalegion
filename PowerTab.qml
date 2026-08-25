@@ -157,10 +157,13 @@ Column {
         font.pixelSize: Style.font.body
         font.bold: true
         wrapMode: Text.Wrap
+        elide: Text.ElideRight
+        maximumLineCount: 2
       }
 
       Text {
         textFormat: Text.PlainText
+        width: parent.width
         text: (ppt.limit && ppt.limit.current !== undefined ? ppt.limit.current : "--")
           + " W  ·  "
           + (ppt.limit && ppt.limit.min !== undefined ? ppt.limit.min : "--")
@@ -170,6 +173,8 @@ Column {
         color: ppt.dim
         font.family: ppt.fontFamily
         font.pixelSize: Style.font.caption
+        elide: Text.ElideRight
+        maximumLineCount: 1
       }
 
       Row {

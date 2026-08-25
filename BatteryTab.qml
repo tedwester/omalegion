@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import qs.Commons
 import qs.Ui
 
@@ -60,15 +61,19 @@ Column {
           id: meta
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
+          width: Math.max(Style.space(80), parent.width - pct.implicitWidth - Style.space(12))
           spacing: Style.space(2)
 
           Text {
             textFormat: Text.PlainText
+            width: parent.width
             text: battery.status || "Unknown"
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
             horizontalAlignment: Text.AlignRight
+            elide: Text.ElideRight
+            maximumLineCount: 1
           }
           Text {
             textFormat: Text.PlainText
@@ -147,10 +152,11 @@ Column {
     onToggled: root.run(["--set-usb-charging", battery.usb_charging ? "0" : "1"])
   }
 
-  Grid {
+  GridLayout {
     columns: 2
     width: parent.width
-    spacing: Style.space(8)
+    columnSpacing: Style.space(8)
+    rowSpacing: Style.space(8)
 
     Repeater {
       model: [
@@ -163,7 +169,8 @@ Column {
       ]
       delegate: StatusCard {
         required property var modelData
-        width: (parent.width - parent.spacing) / 2
+        Layout.fillWidth: true
+        Layout.fillHeight: true
         foreground: root.foreground
         dim: root.dim
         accentColor: root.accentColor

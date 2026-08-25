@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import qs.Commons
 import qs.Ui
 
@@ -21,10 +22,11 @@ Column {
   width: parent ? parent.width : implicitWidth
   spacing: Style.space(10)
 
-  Grid {
+  GridLayout {
     columns: 2
     width: parent.width
-    spacing: Style.space(8)
+    columnSpacing: Style.space(8)
+    rowSpacing: Style.space(8)
 
     Repeater {
       model: {
@@ -51,7 +53,8 @@ Column {
       }
       delegate: StatusCard {
         required property var modelData
-        width: (parent.width - parent.spacing) / 2
+        Layout.fillWidth: true
+        Layout.fillHeight: true
         foreground: root.foreground
         dim: root.dim
         accentColor: root.accentColor
@@ -128,11 +131,12 @@ Column {
     }
   }
 
-  Grid {
+  GridLayout {
     visible: fans.manual_available === true
     columns: 2
     width: parent.width
-    spacing: Style.space(8)
+    columnSpacing: Style.space(8)
+    rowSpacing: Style.space(8)
 
     Repeater {
       model: [
@@ -143,7 +147,8 @@ Column {
       ]
       delegate: BorderSurface {
         required property var modelData
-        width: (parent.width - parent.spacing) / 2
+        Layout.fillWidth: true
+        Layout.fillHeight: true
         implicitHeight: fanCol.implicitHeight + Style.space(14)
         radius: Style.cornerRadius
         color: Style.hoverFillFor(root.foreground, root.foreground)
@@ -154,16 +159,20 @@ Column {
           anchors.left: parent.left
           anchors.right: parent.right
           anchors.top: parent.top
+          anchors.bottom: parent.bottom
           anchors.margins: Style.space(8)
           spacing: Style.space(4)
 
           Text {
             textFormat: Text.PlainText
+            width: parent.width
             text: modelData.label
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
             font.bold: true
+            elide: Text.ElideRight
+            maximumLineCount: 1
           }
           Text {
             textFormat: Text.PlainText
@@ -173,6 +182,8 @@ Column {
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
             wrapMode: Text.Wrap
+            elide: Text.ElideRight
+            maximumLineCount: 2
           }
         }
 
@@ -213,6 +224,8 @@ Column {
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
+        elide: Text.ElideRight
+        maximumLineCount: 1
       }
       Text {
         textFormat: Text.PlainText
@@ -222,6 +235,8 @@ Column {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         wrapMode: Text.Wrap
+        elide: Text.ElideRight
+        maximumLineCount: 2
       }
     }
   }
@@ -249,6 +264,8 @@ Column {
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
+        elide: Text.ElideRight
+        maximumLineCount: 1
       }
       Text {
         textFormat: Text.PlainText
@@ -258,6 +275,8 @@ Column {
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         wrapMode: Text.Wrap
+        elide: Text.ElideRight
+        maximumLineCount: 2
       }
     }
   }

@@ -216,10 +216,62 @@ Column {
     accentColor: root.accentColor
     fontFamily: root.fontFamily
     title: "Overclock GPU"
-    description: gpu.overclock_available
-      ? "Locks NVIDIA core clocks to the firmware maximum while the dGPU is awake."
+    description: gpu.overclock_backend === "nvidia-settings"
+      ? ("LLT-style deltas via nvidia-settings (Coolbits 8). Core " + (gpu.overclock_core_delta >= 0 ? "+" : "") + (gpu.overclock_core_delta ?? 0) + " / Mem " + (gpu.overclock_mem_delta >= 0 ? "+" : "") + (gpu.overclock_mem_delta ?? 0) + " MHz. Voltage V/F is NVAPI-only, unsupported on Linux.")
+      : gpu.overclock_available
+      ? "nvidia-settings missing — toggle only locks/resets clocks via nvidia-smi. Install nvidia-settings + Coolbits 8 for LLT delta OC."
       : "Saved for the next time the dGPU wakes. Enable GPU OC in BIOS if nothing changes."
     checked: gpu.overclock === true
     onToggled: root.run(["--set-gpu-oc", gpu.overclock ? "0" : "1"])
+  }
+
+  Repeater {
+    model: gpu.overclock_backend === "nvidia-settings" && gpu.overclock_available === true
+      ? [
+        { label: "Core +0 MHz", core: 0, mem: gpu.overclock_mem_delta ?? 0, desc: "Reset core offset. LLT CoreDelta range -500…+500." },
+        { label: "Core +100 MHz", core: 100, mem: gpu.overclock_mem_delta ?? 0, desc: "Mild core OC via GPUGraphicsClockOffset." },
+        { label: "Core +200 MHz", core: 200, mem: gpu.overclock_mem_delta ?? 0, desc: "Higher core OC. Test stability." },
+        { label: "Mem +0 MHz", core: gpu.overclock_core_delta ?? 0, mem: 0, desc: "Reset memory offset." },
+        { label: "Mem +500 MHz", core: gpu.overclock_core_delta ?? 0, mem: 500, desc: "Mild mem OC via GPUMemoryTransferRateOffset." },
+        { label: "Mem +1500 MHz", core: gpu.overclock_core_delta ?? 0, mem: 1500, desc: "Higher mem OC. Test stability." }
+      ] : []
+    delegate: OptionCard {
+      required property var modelData
+      width: parent.width
+      foreground: root.foreground
+      dim: root.dim
+      accentColor: root.accentColor
+      fontFamily: root.fontFamily
+      title: modelData.label
+      description: modelData.desc
+      selected: false
+      actionTip: "Apply"
+      onActivated: root.run(["--set-gpu-oc-delta", String(modelData.core), String(modelData.mem)])
+    }
+  }
+
+  Text {
+    visible: gpu.can_restart === true
+    textFormat: Text.PlainText
+    width: parent.width
+    text: "Restart dGPU (LLT RestartGPU via PCI remove + rescan). Only when idle with no processes."
+    color: root.dim
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    wrapMode: Text.Wrap
+  }
+
+  OptionCard {
+    visible: gpu.can_restart === true
+    width: parent.width
+    foreground: root.foreground
+    dim: root.dim
+    accentColor: root.accentColor
+    fontFamily: root.fontFamily
+    title: "Restart dGPU"
+    description: "PCI remove + rescan. Needs root via pkexec."
+    selected: false
+    actionTip: "Restart"
+    onActivated: root.run(["--restart-dgpu"])
   }
 }

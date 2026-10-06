@@ -1,4 +1,4 @@
-"""Small persisted plugin state (overnight charge, GPU OC preference)."""
+"""Small persisted plugin state (overnight charge, GPU OC, GodMode presets)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,18 @@ STATE_FILE = Path.home() / ".config" / "omarchy" / "legion_state.json"
 DEFAULTS = {
     "overnight": False,
     "overnight_hold_applied": False,
+    "overnight_start": 22,
+    "overnight_end": 7,
+    "gpu_oc_enabled": False,
     "gpu_oc": False,
+    "gpu_clock_lock": False,
+    "gpu_core_delta": 0,
+    "gpu_mem_delta": 0,
+    "battery_mode": None,
+    "usb_mode": None,
+    "fan_fullspeed": False,
+    "godmode_presets": {},
+    "godmode_active_preset": None,
     "last_platform_profile": None,
     "last_ppd": None,
 }

@@ -26,29 +26,59 @@ The bar and panel logo is from
 
 - Power mode, CPU/GPU temperatures, fan RPM, battery level, and GPU status at
   a glance.
-- Fn lock and keyboard backlight controls.
+- Fn lock, keyboard backlight levels (LLT WhiteKeyboard Off/Low/High),
+  touchpad, mic/speaker mute.
+
+### Misc (System)
+
+- Display brightness + connected outputs, Y-logo / ports lighting where
+  `legion-laptop` exposes them, device capability summary.
+- RGB 4-zone / Spectrum / LampArray are HID-proprietary and reported
+  unsupported (use OpenRGB where supported) — like LLT hides unsupported
+  controllers.
+- Monochrome bar icon toggle.
+- Plugin version and quick links.
 
 ### Power
 
 - Legion thermal modes (Quiet, Balanced, Performance, Extreme, Custom) via
   `platform_profile`, synced with Omarchy's power-profiles-daemon battery
-  panel.
-- Custom mode PPT (power limit) tuning when supported.
+  panel. Extreme/Custom hide when your firmware doesn't expose them (LLT
+  `SupportsExtremeMode` / GodMode gating).
+- Custom mode (GodMode-lite): all firmware power/temp limits your BIOS
+  exposes (`ppt_*`, `cpu/gpu_*`, RAPL fallback), with firmware min/max
+  validation, plus named presets (save/apply/delete).
 
 ### GPU
 
-- Hybrid / dGPU-only / iGPU-only working modes.
-- dGPU deactivate, overclock controls, and active GPU process list.
+- Hybrid / dGPU-only / iGPU-only working modes (detection live, mux switch
+  via BIOS like LLT without EnergyDrv).
+- dGPU deactivate, restart (PCI remove + rescan, LLT RestartGPU), and active
+  GPU process list.
+- Delta overclock exactly like LLT clamps (core -500…+500, mem
+  -3000…+3000 MHz) via `nvidia-settings` (Coolbits 8). Without it the toggle
+  only locks/resets clocks via `nvidia-smi`. Voltage V/F is NVAPI-only and
+  reported unsupported.
 
 ### Battery
 
-- Charge modes (normal, conservation, rapid charge, overnight).
-- Always-on USB charging toggle.
+- Charge modes (normal, conservation, rapid charge).
+- Always-on USB as LLT 3-state (Off / On-when-sleeping / On-always) where the
+  firmware exposes it; ideapad-only machines show Off / On-when-sleeping.
+- Overnight hold as software policy (configurable 22:00–07:00 window) with
+  explicit tick — reads never write. LLT firmware Night Charge persists
+  without OS and is noted as such.
+- Extra telemetry (power, temp), Flip To Start via UEFI FBSWIF where present.
+  Instant Boot is WMI-only and reported unsupported (switch in BIOS).
 
 ### Cooling
 
-- Fan mode presets and manual fan speed when PWM is available.
-- Live thermal sensors and short temperature/fan history charts.
+- Fan RPM + full sensor set (CPU package/cores, GPU, NVMe, memory, PCH,
+  battery temp).
+- Manual PWM per fan + fan full-speed toggle (legion-laptop), both requiring
+  Custom mode like LLT GodMode.
+- 10-point fan-curve readout (`pwmY_auto_pointZ_*`, LLT FanTable
+  equivalent) with `--set-fan-point` writes.
 
 ### Misc
 

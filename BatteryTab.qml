@@ -134,22 +134,48 @@ Column {
     fontFamily: root.fontFamily
     title: "Overnight Battery Charging"
     description: battery.overnight_active
-      ? "Holding conservation overnight. Returns to Normal after 07:00."
-      : "Holds charge near 80% from 22:00–07:00 while the system is running. Firmware overnight charge is a Windows EnergyDrv IOCTL."
+      ? ("Holding conservation overnight (" + (battery.overnight_start ?? 22) + ":00–" + (battery.overnight_end ?? 7) + ":00). Software hold while running — LLT firmware Night Charge persists without OS.")
+      : ("Holds Long_Life " + (battery.overnight_start ?? 22) + ":00–" + (battery.overnight_end ?? 7) + ":00 while running. Firmware Night Charge is a Windows EnergyDrv IOCTL.")
     checked: battery.overnight === true
     onToggled: root.run(["--set-overnight", battery.overnight ? "0" : "1"])
   }
 
-  ToggleRow {
-    visible: battery.usb_charging !== undefined && battery.usb_charging !== null
-    foreground: root.foreground
-    dim: root.dim
-    accentColor: root.accentColor
-    fontFamily: root.fontFamily
-    title: "Always On USB"
-    description: "Keep USB ports powered so accessories can charge while the laptop is off or sleeping."
-    checked: battery.usb_charging === true
-    onToggled: root.run(["--set-usb-charging", battery.usb_charging ? "0" : "1"])
+  Text {
+    visible: (battery.usb_modes || []).length > 0
+    textFormat: Text.PlainText
+    text: "Always On USB"
+    color: root.foreground
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.body
+    font.bold: true
+  }
+
+  Text {
+    visible: (battery.usb_modes || []).length > 0
+    textFormat: Text.PlainText
+    width: parent.width
+    text: battery.usb_supports_always
+      ? "LLT 3-state: Off / On-when-sleeping / On-always."
+      : "This firmware exposes Off / On-when-sleeping only (ideapad_acpi). LLT OnAlways needs EnergyDrv."
+    color: root.dim
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    wrapMode: Text.Wrap
+  }
+
+  Repeater {
+    model: battery.usb_modes || []
+    delegate: OptionCard {
+      required property var modelData
+      foreground: root.foreground
+      dim: root.dim
+      accentColor: root.accentColor
+      fontFamily: root.fontFamily
+      title: modelData.label
+      description: modelData.desc
+      selected: modelData.selected === true
+      onActivated: root.run(["--set-usb-mode", modelData.id])
+    }
   }
 
   GridLayout {
@@ -165,7 +191,9 @@ Column {
         { label: "Health", value: battery.health_percent ? battery.health_percent + "%" : "--" },
         { label: "Cycles", value: battery.cycle_count !== undefined && battery.cycle_count !== null ? String(battery.cycle_count) : "--" },
         { label: "Voltage", value: battery.voltage_now ? battery.voltage_now + " V" : "--" },
-        { label: "Cell", value: battery.model || "Li-poly" }
+        { label: "Power", value: battery.power_now_w !== undefined && battery.power_now_w !== null ? battery.power_now_w + " W" : "--" },
+        { label: "Temp", value: battery.temp_c !== undefined && battery.temp_c !== null ? battery.temp_c + "°C" : "--" },
+        { label: "Cell", value: battery.model || battery.technology || "Li-poly" }
       ]
       delegate: StatusCard {
         required property var modelData
@@ -179,5 +207,27 @@ Column {
         value: modelData.value
       }
     }
+  }
+
+  Text {
+    visible: d && d.boot && (d.boot.flip_to_start ? d.boot.flip_to_start.supported : false)
+    textFormat: Text.PlainText
+    text: "Boot"
+    color: root.foreground
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.body
+    font.bold: true
+  }
+
+  ToggleRow {
+    visible: d && d.boot && d.boot.flip_to_start && d.boot.flip_to_start.supported === true
+    foreground: root.foreground
+    dim: root.dim
+    accentColor: root.accentColor
+    fontFamily: root.fontFamily
+    title: "Flip To Start"
+    description: "Boot by opening the lid (UEFI FBSWIF). LLT FlipToStart."
+    checked: d.boot.flip_to_start.enabled === true
+    onToggled: root.run(["--set-flip-to-start", d.boot.flip_to_start.enabled ? "0" : "1"])
   }
 }

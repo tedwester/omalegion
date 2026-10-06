@@ -126,6 +126,33 @@ Panel {
     onExited: function() { root.isUpdating = false }
   }
 
+  function successMessage(res) {
+    if (!res || typeof res !== "object") return "Applied"
+    if (res.message) return res.message
+    if (res.mode) return res.mode
+    if (res.battery_mode) return res.battery_mode
+    if (res.preset) return "Preset '" + res.preset + "' applied"
+    if (res.overnight !== undefined) return res.overnight ? "Overnight charging on" : "Overnight charging off"
+    if (res.usb_mode !== undefined) return "USB: " + res.usb_mode
+    if (res.usb_charging !== undefined) return res.usb_charging ? "Always On USB on" : "Always On USB off"
+    if (res.fn_lock !== undefined) return res.fn_lock ? "Fn Lock on" : "Fn Lock off"
+    if (res.touchpad !== undefined) return res.touchpad ? "Touchpad on" : "Touchpad off"
+    if (res.mic_muted !== undefined) return res.mic_muted ? "Microphone muted" : "Microphone unmuted"
+    if (res.speaker_muted !== undefined) return res.speaker_muted ? "Speakers muted" : "Speakers unmuted"
+    if (res.backlight !== undefined) return "Backlight " + res.backlight
+    if (res.brightness !== undefined) return "Brightness " + res.brightness + "%"
+    if (res.core_delta !== undefined) return "OC " + (res.core_delta >= 0 ? "+" : "") + res.core_delta + " / " + (res.mem_delta >= 0 ? "+" : "") + res.mem_delta + " MHz"
+    if (res.gpu_oc !== undefined) return res.gpu_oc ? "GPU overclock on" : "GPU overclock off"
+    if (res.dgpu) return "dGPU suspend requested"
+    if (res.watts !== undefined) return res.watts + " W"
+    if (res.percent !== undefined) return "Fan " + res.percent + "%"
+    if (res.fullspeed !== undefined) return res.fullspeed ? "Fan full-speed on" : "Fan full-speed off"
+    if (res.flip_to_start !== undefined) return res.flip_to_start ? "Flip To Start on" : "Flip To Start off"
+    if (res.logo !== undefined) return res.logo ? "Logo light on" : "Logo light off"
+    if (res.ports !== undefined) return res.ports ? "Ports light on" : "Ports light off"
+    return "Applied"
+  }
+
   Process {
     id: controlProc
     stdout: StdioCollector {
@@ -135,16 +162,7 @@ Panel {
         try {
           var res = JSON.parse(text)
           if (res.status === "success") {
-            root.flash(res.mode || res.battery_mode || res.message
-              || (res.overnight !== undefined ? (res.overnight ? "Overnight charging on" : "Overnight charging off")
-              : res.usb_charging !== undefined ? (res.usb_charging ? "Always On USB on" : "Always On USB off")
-              : res.fn_lock !== undefined ? (res.fn_lock ? "Fn Lock on" : "Fn Lock off")
-              : res.gpu_oc !== undefined ? (res.gpu_oc ? "GPU overclock on" : "GPU overclock off")
-              : res.dgpu ? "dGPU suspend requested"
-              : res.watts !== undefined ? res.watts + " W"
-              : res.percent !== undefined ? "Fan " + res.percent + "%"
-              : "Applied")
-            )
+            root.flash(root.successMessage(res))
             Qt.callLater(root.refresh)
           } else if (res.status === "error") {
             root.flash(res.message || "Unable to apply", true)
@@ -435,10 +453,12 @@ Panel {
           visible: root.activeTab === "misc"
           height: visible ? implicitHeight : 0
           width: parent.width
+          d: root.currentData
           monochromeBarIcon: root.monochromeBarIcon
           foreground: root.foreground
           dim: root.dim
           fontFamily: root.fontFamily
+          run: root.execCommand
           onMonochromeBarIconToggled: root.toggleMonochromeBarIcon()
         }
 

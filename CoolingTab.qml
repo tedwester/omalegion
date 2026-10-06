@@ -131,6 +131,18 @@ Column {
     }
   }
 
+  ToggleRow {
+    visible: fans.has_fullspeed === true
+    foreground: root.foreground
+    dim: root.dim
+    accentColor: root.accentColor
+    fontFamily: root.fontFamily
+    title: "Fan full-speed"
+    description: "LLT FanFullSpeed. Requires Custom mode + legion-laptop fan_fullspeed node."
+    checked: fans.fullspeed === true
+    onToggled: root.run(["--set-fan-fullspeed", fans.fullspeed ? "0" : "1"])
+  }
+
   GridLayout {
     visible: fans.manual_available === true
     columns: 2
@@ -140,9 +152,8 @@ Column {
 
     Repeater {
       model: [
-        { label: "Automatic", value: "auto", desc: "EC firmware fan curve." },
-        { label: "35% Silent", value: "35", desc: "Quiet desktop airflow." },
-        { label: "60% Balanced", value: "60", desc: "Steady cooling for light load." },
+        { label: "Automatic (per-fan EC curve)", value: "auto", desc: "EC firmware fan curve for all controllable fans." },
+        { label: "50% Manual", value: "50", desc: "Steady cooling. Applies per controllable fan." },
         { label: "100% Maximum", value: "100", desc: "Full duty cycle." }
       ]
       delegate: BorderSurface {
@@ -199,6 +210,22 @@ Column {
         }
       }
     }
+  }
+
+  Text {
+    visible: fans.has_curve === true
+    textFormat: Text.PlainText
+    width: parent.width
+    text: {
+      var pts = (fans.curve && fans.curve.points) || []
+      if (!pts.length) return "Fan curve nodes not readable on this firmware."
+      var bits = pts.slice(0, 10).map(function(p) { return "P" + p.point + ":" + p.pwm_percent + "%@" + (p.temp_c !== null ? p.temp_c + "°C" : "--") })
+      return "Curve fan " + (pts[0].fan || 1) + " · " + bits.join("  ") + ". LLT 10-point FanTable equivalent (legion-laptop pwmY_auto_pointZ_*)."
+    }
+    color: root.dim
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    wrapMode: Text.Wrap
   }
 
   BorderSurface {

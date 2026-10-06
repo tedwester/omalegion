@@ -29,16 +29,6 @@ The bar and panel logo is from
 - Fn lock, keyboard backlight levels (LLT WhiteKeyboard Off/Low/High),
   touchpad, mic/speaker mute.
 
-### Misc (System)
-
-- Display brightness + connected outputs, Y-logo / ports lighting where
-  `legion-laptop` exposes them, device capability summary.
-- RGB 4-zone / Spectrum / LampArray are HID-proprietary and reported
-  unsupported (use OpenRGB where supported) — like LLT hides unsupported
-  controllers.
-- Monochrome bar icon toggle.
-- Plugin version and quick links.
-
 ### Power
 
 - Legion thermal modes (Quiet, Balanced, Performance, Extreme, Custom) via
@@ -65,7 +55,8 @@ The bar and panel logo is from
 - Charge modes (normal, conservation, rapid charge).
 - Always-on USB as LLT 3-state (Off / On-when-sleeping / On-always) where the
   firmware exposes it; ideapad-only machines show Off / On-when-sleeping.
-- Overnight hold as software policy (configurable 22:00–07:00 window) with
+- Overnight hold as software policy (22:00–07:00 window, adjustable via
+  `--set-overnight-window` on the CLI — no panel control) with
   explicit tick — reads never write. LLT firmware Night Charge persists
   without OS and is noted as such.
 - Extra telemetry (power, temp), Flip To Start via UEFI FBSWIF where present.
@@ -75,15 +66,23 @@ The bar and panel logo is from
 
 - Fan RPM + full sensor set (CPU package/cores, GPU, NVMe, memory, PCH,
   battery temp).
-- Manual PWM per fan + fan full-speed toggle (legion-laptop), both requiring
-  Custom mode like LLT GodMode.
-- 10-point fan-curve readout (`pwmY_auto_pointZ_*`, LLT FanTable
+- Manual PWM + fan full-speed toggle (legion-laptop), both requiring
+  Custom mode like LLT GodMode. The panel drives the primary fan;
+  per-fan control is available via CLI (`--set-fan-speed PCT INDEX`,
+  `--set-fan-mode auto INDEX`).
+- Fan-curve readout (`pwmY_auto_pointZ_*`, LLT FanTable
   equivalent) with `--set-fan-point` writes.
 
 ### Misc
 
+- Display brightness + connected outputs, Y-logo / ports lighting where
+  `legion-laptop` exposes them, device capability summary.
+- RGB 4-zone / Spectrum / LampArray are HID-proprietary and reported
+  unsupported (use OpenRGB where supported) — like LLT hides unsupported
+  controllers.
 - Monochrome bar icon toggle.
-- Plugin version and quick links.
+- ITS machines (ThinkBook/IdeaPad class) get an explanatory notice on the
+  Power tab: Fn+Q stays firmware-owned there.
 
 ## Requirements
 
@@ -95,7 +94,7 @@ The bar and panel logo is from
 
 Optional:
 
-- [`legion-laptop`](https://github.com/johnfanv2/Legion-Laptop) kernel module
+- [`legion-laptop`](https://github.com/johnfanv2/LenovoLegionLinux) kernel module
   for full PWM fan curves. Without it, fan RPM is read-only on many kernels.
 
 ## Installation
@@ -138,8 +137,9 @@ omarchy plugin remove tedwester.legion --yes
 ```
 
 This disables the plugin and removes it from the shell. The plugin also stores
-rolling thermal history at `~/.config/omarchy/legion_history.json`. Delete that
-file manually if you no longer want the history data.
+rolling thermal history at `~/.config/omarchy/legion_history.json` and settings
+at `~/.config/omarchy/legion_state.json`. Delete those files manually if you
+no longer want the data.
 
 ## What the plugin writes
 
@@ -147,8 +147,8 @@ file manually if you no longer want the history data.
   controls) only when you change a setting in the panel.
 - `~/.config/omarchy/legion_history.json` for short in-panel temperature and
   fan charts.
-- `~/.config/omarchy/legion_state.json` for a few panel toggles (for example
-  GPU overclock and overnight charging).
+- `~/.config/omarchy/legion_state.json` for persisted settings (GodMode
+  presets, GPU deltas, battery/USB modes, overnight state).
 
 Enabling or disabling the plugin does not modify your bar layout beyond what
 Omarchy's plugin enable flow already manages.

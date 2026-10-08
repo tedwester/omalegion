@@ -143,7 +143,6 @@ Column {
   }
 
   ToggleRow {
-    visible: input.fn_lock_available !== false
     foreground: root.foreground
     dim: root.dim
     accentColor: root.accentColor
@@ -152,56 +151,5 @@ Column {
     description: "When on, F1–F12 act as function keys without holding Fn."
     checked: input.fn_lock === true
     onToggled: root.run(["--set-fn-lock", input.fn_lock ? "0" : "1"])
-  }
-
-  Repeater {
-    model: input.backlight_levels || []
-    delegate: OptionCard {
-      required property var modelData
-      foreground: root.foreground
-      dim: root.dim
-      accentColor: root.accentColor
-      fontFamily: root.fontFamily
-      title: "Keyboard backlight · " + modelData.label
-      description: "LLT WhiteKeyboard Off/Low/High via leds."
-      selected: modelData.selected === true
-      onActivated: root.run(["--set-backlight", String(modelData.id)])
-    }
-  }
-
-  ToggleRow {
-    visible: input.touchpad_available === true && input.touchpad_enabled !== undefined && input.touchpad_enabled !== null
-    foreground: root.foreground
-    dim: root.dim
-    accentColor: root.accentColor
-    fontFamily: root.fontFamily
-    title: "Touchpad"
-    description: "LLT TouchpadLock via gsettings/hyprctl."
-    checked: input.touchpad_enabled === true
-    onToggled: root.run(["--set-touchpad", input.touchpad_enabled ? "0" : "1"])
-  }
-
-  ToggleRow {
-    visible: input.mic_available === true
-    foreground: root.foreground
-    dim: root.dim
-    accentColor: root.accentColor
-    fontFamily: root.fontFamily
-    title: "Microphone mute"
-    description: "LLT Microphone mute via wpctl/pactl."
-    checked: input.mic_muted === true
-    onToggled: root.run(["--set-mic-mute", input.mic_muted ? "0" : "1"])
-  }
-
-  ToggleRow {
-    visible: input.speaker_available === true
-    foreground: root.foreground
-    dim: root.dim
-    accentColor: root.accentColor
-    fontFamily: root.fontFamily
-    title: "Speaker mute"
-    description: "LLT Speaker mute" + (input.speaker_volume !== undefined && input.speaker_volume !== null ? " · " + input.speaker_volume + "%" : "") + " via wpctl/pactl."
-    checked: input.speaker_muted === true
-    onToggled: root.run(["--set-speaker-mute", input.speaker_muted ? "0" : "1"])
   }
 }

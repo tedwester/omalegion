@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import qs.Commons
 import qs.Ui
 
@@ -15,9 +16,18 @@ Column {
   property var run
 
   readonly property var fans: d && d.fans ? d.fans : ({})
+  readonly property var fullspeed: fans.fullspeed || ({})
+  readonly property var curve: fans.curve || ({})
+  readonly property var curvePoints: curve.points || []
   readonly property var thermals: d && d.thermals ? d.thermals : ({})
   readonly property var history: d && d.history ? d.history : ({})
   readonly property var power: d && d.power ? d.power : ({})
+
+  function installLegionModule() {
+    Quickshell.execDetached(["omarchy", "launch", "terminal",
+      "bash", "-c",
+      "omarchy pkg aur add lenovolegionlinux-dkms-git && sudo modprobe legion-laptop; echo \"Done - close this terminal when ready\"; exec bash"])
+  }
 
   width: parent ? parent.width : implicitWidth
   spacing: Style.space(10)
@@ -147,12 +157,15 @@ Column {
       ]
       delegate: BorderSurface {
         required property var modelData
+        readonly property bool isSelected: modelData.value === "auto" ? root.fans.mode === "auto" : (root.fans.mode === "manual" && root.fans.manual_percent === Number(modelData.value))
         Layout.fillWidth: true
         Layout.fillHeight: true
         implicitHeight: fanCol.implicitHeight + Style.space(14)
         radius: Style.cornerRadius
-        color: Style.hoverFillFor(root.foreground, root.foreground)
-        borderSpec: Border.controlSpec("normal", root.dim, root.accentColor)
+        color: isSelected ? Style.selectedFillFor(root.foreground, root.foreground) : Style.hoverFillFor(root.foreground, root.foreground)
+        borderSpec: isSelected
+          ? Border.controlSpec("selected", root.accentColor, root.accentColor)
+          : Border.controlSpec("normal", root.dim, root.accentColor)
 
         Column {
           id: fanCol
@@ -195,6 +208,149 @@ Column {
               root.run(["--set-fan-mode", "auto"])
             else
               root.run(["--set-fan-speed", modelData.value])
+          }
+        }
+      }
+    }
+  }
+
+  ToggleRow {
+    visible: root.fullspeed.available === true
+    foreground: root.foreground
+    dim: root.dim
+    accentColor: root.accentColor
+    fontFamily: root.fontFamily
+    title: "Full-speed fans"
+    description: root.power.is_custom === true
+      ? "Run both fans at maximum."
+      : "Requires Custom power mode."
+    checked: root.fullspeed.enabled === true
+    enabled: root.power.is_custom === true
+    onToggled: root.run(["--set-fullspeed", root.fullspeed.enabled ? "0" : "1"])
+  }
+
+  Text {
+    textFormat: Text.PlainText
+    visible: root.curve.available === true
+    text: "Fan curve"
+    color: root.foreground
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.body
+    font.bold: true
+  }
+
+  Text {
+    textFormat: Text.PlainText
+    width: parent.width
+    visible: root.curve.available === true
+    text: root.power.is_custom === true
+      ? "Per-point fan speeds. Tap − / + to adjust."
+      : "Switch to Custom power mode to edit the curve."
+    color: root.dim
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    wrapMode: Text.Wrap
+  }
+
+  GridLayout {
+    visible: root.curve.available === true
+    columns: 2
+    width: parent.width
+    columnSpacing: Style.space(8)
+    rowSpacing: Style.space(8)
+
+    Repeater {
+      model: root.curvePoints
+      delegate: BorderSurface {
+        required property var modelData
+        Layout.fillWidth: true
+        implicitHeight: curveRow.implicitHeight + Style.space(14)
+        radius: Style.cornerRadius
+        color: Style.hoverFillFor(root.foreground, root.foreground)
+        borderSpec: Border.controlSpec("normal", root.dim, root.accentColor)
+        opacity: root.power.is_custom === true ? 1 : 0.55
+
+        Row {
+          id: curveRow
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.top: parent.top
+          anchors.margins: Style.space(8)
+          spacing: Style.space(6)
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            text: "P" + modelData.index
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+
+          BorderSurface {
+            anchors.verticalCenter: parent.verticalCenter
+            implicitWidth: curveBtnText.implicitWidth + Style.space(12)
+            implicitHeight: curveBtnText.implicitHeight + Style.space(6)
+            radius: Style.cornerRadius
+            color: "transparent"
+            borderSpec: Border.controlSpec("normal", root.dim, root.accentColor)
+
+            Text {
+              id: curveBtnText
+              textFormat: Text.PlainText
+              anchors.centerIn: parent
+              text: "−"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              enabled: root.power.is_custom === true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.run(["--set-fan-point", String(modelData.index), String(modelData.level - 1)])
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            text: "L" + modelData.level + (modelData.rpm ? " · " + modelData.rpm + " RPM" : "")
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            elide: Text.ElideRight
+          }
+
+          BorderSurface {
+            anchors.verticalCenter: parent.verticalCenter
+            implicitWidth: curveBtnText2.implicitWidth + Style.space(12)
+            implicitHeight: curveBtnText2.implicitHeight + Style.space(6)
+            radius: Style.cornerRadius
+            color: "transparent"
+            borderSpec: Border.controlSpec("normal", root.dim, root.accentColor)
+
+            Text {
+              id: curveBtnText2
+              textFormat: Text.PlainText
+              anchors.centerIn: parent
+              text: "+"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              enabled: root.power.is_custom === true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.run(["--set-fan-point", String(modelData.index), String(modelData.level + 1)])
+            }
           }
         }
       }
@@ -277,6 +433,31 @@ Column {
         wrapMode: Text.Wrap
         elide: Text.ElideRight
         maximumLineCount: 2
+      }
+
+      BorderSurface {
+        implicitWidth: installText.implicitWidth + Style.space(14)
+        implicitHeight: installText.implicitHeight + Style.space(8)
+        radius: Style.cornerRadius
+        color: "transparent"
+        borderSpec: Border.controlSpec("normal", root.dim, root.accentColor)
+
+        Text {
+          id: installText
+          textFormat: Text.PlainText
+          anchors.centerIn: parent
+          text: "Install legion-laptop"
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.installLegionModule()
+        }
       }
     }
   }

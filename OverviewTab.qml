@@ -12,14 +12,12 @@ Column {
   property color urgent
   property color accentColor: Color.accent
   property string fontFamily
-  property var run
 
   readonly property var power: d && d.power ? d.power : ({})
   readonly property var thermals: d && d.thermals ? d.thermals : ({})
   readonly property var fans: d && d.fans ? d.fans : ({})
   readonly property var gpu: d && d.gpu ? d.gpu : ({})
   readonly property var battery: d && d.battery ? d.battery : ({})
-  readonly property var input: d && d.input ? d.input : ({})
 
   width: parent ? parent.width : implicitWidth
   spacing: Style.space(10)
@@ -140,16 +138,5 @@ Column {
         }
       }
     }
-  }
-
-  ToggleRow {
-    foreground: root.foreground
-    dim: root.dim
-    accentColor: root.accentColor
-    fontFamily: root.fontFamily
-    title: "Fn Lock"
-    description: "When on, F1–F12 act as function keys without holding Fn."
-    checked: input.fn_lock === true
-    onToggled: root.run(["--set-fn-lock", input.fn_lock ? "0" : "1"])
   }
 }

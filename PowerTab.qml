@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import qs.Commons
 import qs.Ui
 
@@ -12,6 +13,12 @@ Column {
   property color accentColor: Color.accent
   property string fontFamily
   signal commandRequested(var args)
+
+  function installLegionModule() {
+    Quickshell.execDetached(["omarchy", "launch", "terminal",
+      "bash", "-c",
+      "omarchy pkg aur add lenovolegionlinux-dkms-git && sudo modprobe legion-laptop; echo \"Done - close this terminal when ready\"; exec bash"])
+  }
 
   readonly property var power: d && d.power ? d.power : ({})
   readonly property var custom: power.custom || ({})
@@ -55,15 +62,22 @@ Column {
       accentColor: root.accentColor
       fontFamily: root.fontFamily
       title: modelData.label
-      description: modelData.blocked_on_battery
+      description: modelData.needs_module === true
+        ? "Install the legion-laptop module to unlock Custom."
+        : modelData.blocked_on_battery
         ? modelData.desc + " Requires AC power."
         : modelData.desc
       selected: modelData.selected === true
-      enabled: !modelData.blocked_on_battery
-      actionTip: modelData.blocked_on_battery
+      enabled: modelData.needs_module === true || !modelData.blocked_on_battery
+      actionTip: modelData.needs_module === true
+        ? "Install legion-laptop"
+        : modelData.blocked_on_battery
         ? "Plug in AC power"
         : (modelData.selected ? "Active" : "Apply " + modelData.label)
-      onActivated: root.commandRequested(["--set-power", modelData.profile])
+      onActivated: {
+        if (modelData.needs_module === true) root.installLegionModule()
+        else root.commandRequested(["--set-power", modelData.profile])
+      }
     }
   }
 

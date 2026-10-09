@@ -1,11 +1,9 @@
-"""Static machine identity."""
-
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
-from .sysfs import read_text
+from .sysfs import helper_available, read_text
 
 
 def get_system() -> dict:
@@ -16,6 +14,7 @@ def get_system() -> dict:
         "hostname": os.uname().nodename,
         "kernel": os.uname().release,
         "ram_gb": None,
+        "privileged": helper_available(),
     }
     for key, node in (
         ("vendor", "sys_vendor"),

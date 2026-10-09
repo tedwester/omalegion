@@ -47,23 +47,22 @@ BarWidget {
     if (panelItem) panelItem.closeForPopoutSwitch()
   }
 
-  function statusColor() {
-    var data = panelItem ? panelItem.currentData : null
-    if (!data) return root.bar ? root.bar.barForeground : Color.foreground
-    var temp = data.thermals && data.thermals.cpu_package ? data.thermals.cpu_package : 0
-    var mode = data.power && data.power.current_id ? data.power.current_id : ""
-    if (temp >= 90) return root.bar ? root.bar.urgent : Color.urgent
+  readonly property var legionData: panelItem ? panelItem.currentData : null
+
+  readonly property color badgeColor: {
+    if (!root.legionData) return root.bar ? root.bar.barForeground : Color.foreground
+    var mode = root.legionData.power && root.legionData.power.current_id ? root.legionData.power.current_id : ""
+    if (mode === "performance") return "#e67e80"
     if (mode === "extreme" || mode === "custom") return "#b57bff"
     if (mode === "quiet") return "#4d9fff"
     if (mode === "balanced") return "#ffffff"
-    if (mode === "performance") return Color.accent
     return root.bar ? root.bar.barForeground : Color.foreground
   }
 
-  function tooltipText() {
-    if (!panelItem || !panelItem.currentData) return "Legion Toolkit"
-    var p = panelItem.currentData.power || {}
-    var t = panelItem.currentData.thermals || {}
+  readonly property string tipText: {
+    if (!root.legionData) return "Legion Toolkit"
+    var p = root.legionData.power || {}
+    var t = root.legionData.thermals || {}
     var mode = p.current_label || "Unknown"
     var temp = t.cpu_package ? Math.round(t.cpu_package) + "°C" : "--"
     var ppd = p.ppd_label || p.ppd || ""
@@ -101,11 +100,11 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     active: root.opened
-    tooltipText: root.tooltipText()
+    tooltipText: root.tipText
     iconComponent: Component {
       LegionIcon {
         iconSize: Style.bar.iconCanvas
-        statusColor: root.statusColor()
+        statusColor: root.badgeColor
         monochrome: root.monochromeBarIcon
         tintColor: root.bar ? root.bar.barForeground : Color.foreground
       }

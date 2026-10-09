@@ -1,5 +1,3 @@
-"""Small persisted plugin state (overnight charge, GPU OC preference)."""
-
 from __future__ import annotations
 
 import json
@@ -10,6 +8,12 @@ DEFAULTS = {
     "overnight": False,
     "overnight_hold_applied": False,
     "gpu_oc": False,
+    "touchpad_lock": False,
+    "fan_manual": False,
+    "fan_curve_default": None,
+    "fan_percent": None,
+    "kbd_brightness": 5,
+    "kbd_last": None,
     "last_platform_profile": None,
     "last_ppd": None,
 }
@@ -30,7 +34,10 @@ def load() -> dict:
 def save(data: dict) -> None:
     merged = dict(DEFAULTS)
     merged.update(data)
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = STATE_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(merged))
-    tmp.replace(STATE_FILE)
+    try:
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = STATE_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(merged))
+        tmp.replace(STATE_FILE)
+    except OSError:
+        pass

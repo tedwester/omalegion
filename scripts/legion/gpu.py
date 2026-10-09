@@ -1,10 +1,3 @@
-"""GPU working mode, discrete GPU status, and a simple overclock toggle.
-
-Working mode is inferred from PCI boot_vga + driver bind — the same Hybrid vs
-dGPU split LLT exposes. Mux changes on this kernel are BIOS/firmware; we do
-not write EFI variables. Deactivate uses process termination then runtime PM.
-"""
-
 from __future__ import annotations
 
 import re
@@ -15,7 +8,53 @@ from . import state as plugin_state
 from .sysfs import read_text, run_cmd, safe_write
 
 NVIDIA_PCI = Path("/sys/bus/pci/devices/0000:01:00.0")
-INTEL_PCI = Path("/sys/bus/pci/devices/0000:00:02.0")
+LEGION_IGPUMODE = Path("/sys/devices/platform/legion/igpumode")
+LEGION_GSYNC = Path("/sys/devices/platform/legion/gsync")
+
+LEGION_IGPU_MODES = [
+    {
+        "id": "hybrid",
+        "legion": "0",
+        "label": "Hybrid",
+        "desc": "iGPU drives the panel. dGPU wakes on demand, then powers off.",
+    },
+    {
+        "id": "igpu-only",
+        "legion": "1",
+        "label": "iGPU only",
+        "desc": "dGPU disconnected for best battery. May need a reboot.",
+    },
+    {
+        "id": "hybrid-auto",
+        "legion": "2",
+        "label": "Hybrid auto",
+        "desc": "Firmware connects and disconnects the dGPU automatically.",
+    },
+]
+
+
+def _legion_igpu() -> str | None:
+    if not LEGION_IGPUMODE.exists():
+        return None
+    return read_text(LEGION_IGPUMODE)
+
+
+def get_gsync() -> dict:
+    if not LEGION_GSYNC.exists():
+        return {"available": False, "enabled": False}
+    return {"available": True, "enabled": read_text(LEGION_GSYNC) == "0"}
+
+
+def set_gsync(enabled: bool) -> dict:
+    if not LEGION_GSYNC.exists():
+        return {"status": "error", "message": "G-Sync control needs the legion-laptop module"}
+    result = safe_write(LEGION_GSYNC, "0" if enabled else "1")
+    if result["status"] == "success":
+        if read_text(LEGION_GSYNC) != ("0" if enabled else "1"):
+            return {"status": "error", "message": "Firmware did not apply the G-Sync change"}
+        result["gsync"] = bool(enabled)
+        result["message"] = "G-Sync on" if enabled else "G-Sync off"
+    return result
 
 WORKING_MODES = [
     {
@@ -36,17 +75,32 @@ WORKING_MODES = [
 ]
 
 
-def _find_nvidia_pci() -> Path | None:
-    if NVIDIA_PCI.exists():
-        return NVIDIA_PCI
-    for dev in Path("/sys/bus/pci/devices").glob("*"):
-        cls = read_text(dev / "class")
-        if cls and cls.startswith("0x0300") and "nvidia" in (read_text(dev / "vendor") or "").lower():
+def _find_pci(vendor_id: str) -> Path | None:
+    for dev in sorted(Path("/sys/bus/pci/devices")):
+        if (read_text(dev / "class") or "").startswith("0x030") and (read_text(dev / "vendor") or "").lower() == vendor_id:
             return dev
+    return None
+
+
+def _find_nvidia_pci() -> Path | None:
+    known = Path("/sys/bus/pci/devices/0000:01:00.0")
+    if known.exists():
+        return known
+    found = _find_pci("0x10de")
+    if found:
+        return found
+    for dev in Path("/sys/bus/pci/devices").glob("*"):
         name = run_cmd(["lspci", "-s", dev.name], timeout=1.0) or ""
         if "VGA" in name and "NVIDIA" in name.upper():
             return dev
     return None
+
+
+def _find_igpu_pci() -> Path | None:
+    known = Path("/sys/bus/pci/devices/0000:00:02.0")
+    if known.exists():
+        return known
+    return _find_pci("0x8086") or _find_pci("0x1022")
 
 
 def _lspci_name(pci: Path) -> str | None:
@@ -128,15 +182,26 @@ def _nvidia_processes() -> list[dict]:
     return procs[:8]
 
 
+def dgpu_asleep() -> bool:
+    """True when runtime PM reports the dGPU suspended (D3cold).
+
+    nvidia-smi wakes a suspended dGPU, so callers must skip nvidia-smi
+    probes while this is true or monitoring alone keeps the dGPU awake.
+    """
+    nvidia = _find_nvidia_pci()
+    if not nvidia or not nvidia.exists():
+        return True
+    return (
+        read_text(nvidia / "power/runtime_status") == "suspended"
+        or read_text(nvidia / "power_state") == "D3cold"
+    )
+
+
 def _external_nvidia_displays() -> bool:
     for conn in Path("/sys/class/drm").glob("card*-*/status"):
         if read_text(conn) == "connected":
-            card = conn.parent.parent.name
-            if "nvidia" in card.lower() or "NVIDIA" in card:
-                return True
             dev = conn.parent.name
             if dev.startswith("card") and "-" in dev:
-                pci_slot = dev.split("-", 1)[1]
                 pci_path = Path(f"/sys/class/drm/{dev}/device")
                 if pci_path.exists():
                     vendor = read_text(pci_path / "vendor")
@@ -146,7 +211,8 @@ def _external_nvidia_displays() -> bool:
 
 
 def _detect_working_mode(nvidia: Path | None) -> str:
-    intel_boot = read_text(INTEL_PCI / "boot_vga") == "1" if INTEL_PCI.exists() else False
+    intel = _find_igpu_pci()
+    intel_boot = read_text(intel / "boot_vga") == "1" if intel and intel.exists() else False
     nvidia_present = nvidia is not None and nvidia.exists()
     nvidia_boot = read_text(nvidia / "boot_vga") == "1" if nvidia_present else False
     nvidia_bound = (nvidia / "driver").exists() if nvidia_present else False
@@ -187,7 +253,10 @@ def get_gpu() -> dict:
     nvidia = _find_nvidia_pci()
     runtime = read_text(nvidia / "power/runtime_status") if nvidia else None
     power_state = read_text(nvidia / "power_state") if nvidia else None
-    smi = _nvidia_smi_query()
+    # Skip nvidia-smi while suspended: probing wakes the dGPU and polling
+    # alone would keep it awake (see dgpu_asleep).
+    asleep = runtime == "suspended" or power_state == "D3cold"
+    smi = None if asleep else _nvidia_smi_query()
     powered = bool(smi) or runtime == "active"
     working = _detect_working_mode(nvidia)
     st = plugin_state.load()
@@ -195,7 +264,8 @@ def get_gpu() -> dict:
     external = _external_nvidia_displays()
 
     name = (smi or {}).get("name") or (_lspci_name(nvidia) if nvidia else None) or "NVIDIA GPU"
-    intel_name = _lspci_name(INTEL_PCI) or "Intel Graphics"
+    intel = _find_igpu_pci()
+    intel_name = (_lspci_name(intel) if intel else None) or "Integrated Graphics"
 
     status = "Unknown"
     if not nvidia or not nvidia.exists():
@@ -210,8 +280,15 @@ def get_gpu() -> dict:
         status = "Unavailable"
 
     modes = []
-    for mode in WORKING_MODES:
-        modes.append({**mode, "selected": mode["id"] == working, "switchable": False})
+    legion_igpu = _legion_igpu()
+    if legion_igpu is not None:
+        current_legion = next((m for m in LEGION_IGPU_MODES if m["legion"] == legion_igpu), None)
+        working = current_legion["id"] if current_legion else working
+        for mode in LEGION_IGPU_MODES:
+            modes.append({**mode, "selected": mode["id"] == working, "switchable": True})
+    else:
+        for mode in WORKING_MODES:
+            modes.append({**mode, "selected": mode["id"] == working, "switchable": False})
 
     can_deactivate = (
         working == "hybrid"
@@ -225,9 +302,10 @@ def get_gpu() -> dict:
         "name": name,
         "igpu_name": intel_name,
         "working_mode": working,
-        "working_label": next((m["label"] for m in WORKING_MODES if m["id"] == working), working),
+        "working_label": next((m["label"] for m in modes if m["id"] == working), working),
         "working_modes": modes,
-        "working_note": "Mux changes need a BIOS reboot on this kernel. Detection stays live.",
+        "working_note": "Applies immediately. A reboot may be needed on some firmware." if legion_igpu is not None else "Mux changes need a BIOS reboot on this kernel. Detection stays live.",
+        "gsync": get_gsync(),
         "status": status,
         "powered": powered,
         "runtime": runtime,
@@ -252,6 +330,19 @@ def get_gpu() -> dict:
 
 
 def set_gpu_mode(mode: str) -> dict:
+    legion_ids = {m["id"]: m["legion"] for m in LEGION_IGPU_MODES}
+    if mode in legion_ids and LEGION_IGPUMODE.exists():
+        if _external_nvidia_displays() and mode == "igpu-only":
+            return {"status": "error", "message": "Disconnect external displays on the dGPU first."}
+        if read_text(LEGION_IGPUMODE) == legion_ids[mode]:
+            return {"status": "success", "gpu_mode": mode, "message": f"GPU mode: {mode} (already active)"}
+        result = safe_write(LEGION_IGPUMODE, legion_ids[mode])
+        if result["status"] == "success":
+            if read_text(LEGION_IGPUMODE) != legion_ids[mode]:
+                return {"status": "error", "message": "Firmware did not apply the GPU mode change"}
+            result["gpu_mode"] = mode
+            result["message"] = f"GPU mode: {mode}"
+        return result
     if mode not in {m["id"] for m in WORKING_MODES}:
         return {"status": "error", "message": f"Unknown GPU mode: {mode}"}
     nvidia = _find_nvidia_pci()

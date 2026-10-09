@@ -1,25 +1,12 @@
-"""Battery mode, overnight hold, always-on USB.
-
-LLT battery modes map to /sys/class/power_supply/BAT*/charge_types:
-  Rapid Charge -> Fast
-  Normal       -> Standard
-  Conservation -> Long_Life
-
-Overnight charging is a Lenovo EnergyDrv IOCTL on Windows. Linux does not
-expose that firmware interface, so we approximate it while the OS is running:
-hold Long_Life overnight, restore Standard in the morning — never overriding
-an explicit Conservation or Rapid selection.
-"""
-
 from __future__ import annotations
 
 import time
 from pathlib import Path
 
 from . import state as plugin_state
-from .sysfs import first_existing, read_text, safe_write
+from .sysfs import first_existing, ideapad_dir, read_text, safe_write
 
-IDEAPAD = Path("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00")
+IDEAPAD = ideapad_dir()
 NIGHT_START, NIGHT_END = 22, 7
 
 BATTERY_MODES = {
@@ -93,7 +80,6 @@ def _write_charge_type(sysfs_name: str) -> dict:
 
 
 def apply_overnight_policy(current_sysfs: str | None) -> str | None:
-    """Hold Long_Life at night when overnight is on and mode is Normal."""
     st = plugin_state.load()
     if not st.get("overnight"):
         if st.get("overnight_hold_applied") and current_sysfs == "Long_Life":
@@ -155,13 +141,18 @@ def get_battery() -> dict:
         energy_design = read_text(bat_dir / "energy_full_design") or read_text(bat_dir / "energy_design")
 
         if energy_now and energy_full and energy_full != "0":
-            bat["capacity_wh"] = round(int(energy_now) / 1_000_000, 2)
-            bat["full_wh"] = round(int(energy_full) / 1_000_000, 2)
-            bat["percent"] = round((int(energy_now) / int(energy_full)) * 100, 1)
-            if energy_design:
-                bat["design_wh"] = round(int(energy_design) / 1_000_000, 2)
-                bat["health_percent"] = round((int(energy_full) / int(energy_design)) * 100, 1)
-        elif cap and cap.isdigit():
+            try:
+                now_i, full_i = int(energy_now), int(energy_full)
+                bat["capacity_wh"] = round(now_i / 1_000_000, 2)
+                bat["full_wh"] = round(full_i / 1_000_000, 2)
+                bat["percent"] = round((now_i / full_i) * 100, 1)
+                if energy_design:
+                    design_i = int(energy_design)
+                    bat["design_wh"] = round(design_i / 1_000_000, 2)
+                    bat["health_percent"] = round((full_i / design_i) * 100, 1)
+            except (ValueError, ZeroDivisionError):
+                pass
+        if bat["percent"] is None and cap and cap.isdigit():
             bat["percent"] = int(cap)
 
         cycles = read_text(bat_dir / "cycle_count")
@@ -186,16 +177,16 @@ def get_battery() -> dict:
         if not raw_types:
             raw_types = "ideapad conservation_mode"
 
-    applied = apply_overnight_policy(current_sysfs)
-    if applied:
-        current_sysfs = applied
-
+    # NOTE: reads must not write. The overnight hold is applied only by the
+    # explicit set_overnight()/set_battery_mode() actions below, never during
+    # polling. Overnight therefore only takes effect while this OS runs and
+    # an action (toggle or poll-triggered apply) runs at night.
     mode_id = SYSFS_TO_MODE.get(current_sysfs or "", "normal")
     st = plugin_state.load()
     bat["mode"] = mode_id
     bat["mode_label"] = BATTERY_MODES[mode_id]["label"]
     bat["overnight"] = bool(st.get("overnight"))
-    bat["overnight_active"] = bool(st.get("overnight") and _is_night())
+    bat["overnight_active"] = bool(st.get("overnight") and _is_night() and current_sysfs != "Fast")
     bat["available_modes"] = [
         {**info, "selected": info["id"] == mode_id, "available": info["sysfs"] in choices or not choices}
         for info in BATTERY_MODES.values()

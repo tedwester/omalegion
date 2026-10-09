@@ -14,6 +14,7 @@ Column {
   property var run
 
   readonly property var gpu: d && d.gpu ? d.gpu : ({})
+  readonly property var gsync: gpu.gsync || ({})
   readonly property var modes: gpu.working_modes || []
   readonly property var processes: gpu.processes || []
 
@@ -51,7 +52,7 @@ Column {
       description: modelData.desc
       selected: modelData.selected === true
       enabled: modelData.selected === true || modelData.switchable === true
-      actionTip: modelData.selected ? "Active" : "Requires BIOS reboot on this kernel"
+      actionTip: modelData.selected ? "Active" : (modelData.switchable ? "Apply " + modelData.label : "Requires BIOS reboot on this kernel")
       onActivated: root.run(["--set-gpu-mode", modelData.id])
     }
   }
@@ -208,6 +209,18 @@ Column {
         }
       }
     }
+  }
+
+  ToggleRow {
+    visible: root.gsync.available === true
+    foreground: root.foreground
+    dim: root.dim
+    accentColor: root.accentColor
+    fontFamily: root.fontFamily
+    title: "G-Sync"
+    description: "Variable refresh rate on the internal display."
+    checked: root.gsync.enabled === true
+    onToggled: root.run(["--set-gsync", root.gsync.enabled ? "0" : "1"])
   }
 
   ToggleRow {

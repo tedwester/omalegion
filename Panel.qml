@@ -23,7 +23,7 @@ Panel {
 
   property var currentData: null
   property bool isUpdating: false
-  property string lastUpdateTime: ""
+  property bool refreshQueued: false
   property string activeTab: "overview"
   property string notice: ""
   property bool noticeIsError: false
@@ -34,6 +34,8 @@ Panel {
     { label: "GPU", key: "gpu" },
     { label: "Battery", key: "battery" },
     { label: "Cooling", key: "cooling" },
+    { label: "Input", key: "input" },
+    { label: "Lighting", key: "lighting" },
     { label: "Misc.", key: "misc" }
   ]
 
@@ -51,13 +53,27 @@ Panel {
     persistPluginSetting("monochromeBarIcon", !root.monochromeBarIcon)
   }
 
-  function refresh() {
-    if (pollProc.running) return
+  function switchPanel(direction) {
+    var keys = []
+    for (var i = 0; i < root.tabList.length; i++) keys.push(root.tabList[i].key)
+    var idx = keys.indexOf(root.activeTab)
+    if (idx < 0) idx = direction < 0 ? 0 : -1
+    idx = (idx + direction + keys.length) % keys.length
+    root.activeTab = keys[idx]
+  }
+
+  function refresh(force) {
+    if (pollProc.running) {
+      if (force === true) root.refreshQueued = true
+      return
+    }
+    root.refreshQueued = false
     root.isUpdating = true
     pollProc.running = true
   }
 
   function execCommand(args) {
+    if (controlProc.running) return
     var tail = []
     if (Array.isArray(args)) {
       for (var i = 0; i < args.length; i++)
@@ -71,10 +87,13 @@ Panel {
 
   function parseOutput(text) {
     root.isUpdating = false
+    if (root.refreshQueued) {
+      root.refreshQueued = false
+      Qt.callLater(root.refresh)
+    }
     if (!text || text.trim() === "") return
     try {
       root.currentData = JSON.parse(text)
-      root.lastUpdateTime = root.currentData.timestamp || ""
     } catch (e) {
       console.log("legion JSON parse error:", e)
     }
@@ -98,9 +117,17 @@ Panel {
 
   Timer {
     id: liveTimer
-    interval: 3000
+    interval: 10000
     running: root.opened
     repeat: true
+    onTriggered: root.refresh()
+  }
+
+  Timer {
+    id: refreshDebounce
+    interval: 400
+    running: false
+    repeat: false
     onTriggered: root.refresh()
   }
 
@@ -110,6 +137,24 @@ Panel {
     running: false
     repeat: false
     onTriggered: root.notice = ""
+  }
+
+  Process {
+    id: audioWatch
+    running: root.opened
+    command: ["pactl", "subscribe"]
+    stdout: SplitParser {
+      onRead: refreshDebounce.restart()
+    }
+  }
+
+  Process {
+    id: powerWatch
+    running: root.opened
+    command: ["udevadm", "monitor", "-u", "-s", "power_supply", "-s", "drm"]
+    stdout: SplitParser {
+      onRead: refreshDebounce.restart()
+    }
   }
 
   Process {
@@ -123,7 +168,13 @@ Panel {
       waitForEnd: true
       onStreamFinished: if (text) console.log("legion stderr:", text)
     }
-    onExited: function() { root.isUpdating = false }
+    onExited: function() {
+      root.isUpdating = false
+      if (root.refreshQueued) {
+        root.refreshQueued = false
+        Qt.callLater(root.refresh)
+      }
+    }
   }
 
   Process {
@@ -135,7 +186,8 @@ Panel {
         try {
           var res = JSON.parse(text)
           if (res.status === "success") {
-            root.flash(res.mode || res.battery_mode || res.message
+            root.flash(res.message
+              || res.mode || res.battery_mode
               || (res.overnight !== undefined ? (res.overnight ? "Overnight charging on" : "Overnight charging off")
               : res.usb_charging !== undefined ? (res.usb_charging ? "Always On USB on" : "Always On USB off")
               : res.fn_lock !== undefined ? (res.fn_lock ? "Fn Lock on" : "Fn Lock off")
@@ -178,7 +230,7 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(520))
+    contentWidth: root.activeTab === "lighting" ? Style.space(720) : panel.fittedContentWidth(Style.space(520))
     contentHeight: panel.fittedContentHeight(mainLayout.implicitHeight)
 
     PanelKeyCatcher {
@@ -187,7 +239,7 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (t === "r" || t === "R") root.refresh()
+        if (t === "r" || t === "R") root.refresh(true)
       }
 
       Column {
@@ -213,8 +265,7 @@ Panel {
             id: heroLabels
             anchors.left: heroIcon.right
             anchors.leftMargin: Style.space(12)
-            anchors.right: heroAction.left
-            anchors.rightMargin: Style.space(8)
+            anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(2)
 
@@ -255,45 +306,11 @@ Panel {
 
             Text {
               textFormat: Text.PlainText
-              text: {
-                var bits = []
-                if (root.currentData && root.currentData.system && root.currentData.system.product)
-                  bits.push(root.currentData.system.product)
-                if (root.lastUpdateTime) bits.push(root.lastUpdateTime)
-                return bits.length ? bits.join(" · ") : "Loading hardware…"
-              }
+              text: (root.currentData && root.currentData.system && root.currentData.system.product) || "Loading hardware…"
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               elide: Text.ElideRight
-            }
-          }
-
-          Item {
-            id: refreshHost
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            width: heroAction.implicitWidth
-            height: heroAction.implicitHeight
-            transformOrigin: Item.Center
-
-            PanelActionButton {
-              id: heroAction
-              anchors.fill: parent
-              iconText: ""
-              tooltipText: root.isUpdating ? "Updating…" : "Refresh ('R')"
-              foreground: root.isUpdating ? Color.accent : root.foreground
-              onClicked: root.refresh()
-            }
-
-            RotationAnimator on rotation {
-              running: root.isUpdating
-              from: 0
-              to: 360
-              duration: 900
-              loops: Animation.Infinite
-              easing.type: Easing.Linear
-              onRunningChanged: if (!running) refreshHost.rotation = 0
             }
           }
         }
@@ -380,7 +397,6 @@ Panel {
           dim: root.dim
           urgent: root.urgent
           fontFamily: root.fontFamily
-          run: root.execCommand
         }
 
         PowerTab {
@@ -431,14 +447,40 @@ Panel {
           run: root.execCommand
         }
 
+        InputTab {
+          visible: root.activeTab === "input"
+          height: visible ? implicitHeight : 0
+          width: parent.width
+          d: root.currentData
+          foreground: root.foreground
+          dim: root.dim
+          urgent: root.urgent
+          fontFamily: root.fontFamily
+          run: root.execCommand
+        }
+
+        LightingTab {
+          visible: root.activeTab === "lighting"
+          height: visible ? implicitHeight : 0
+          width: parent.width
+          d: root.currentData
+          foreground: root.foreground
+          dim: root.dim
+          urgent: root.urgent
+          fontFamily: root.fontFamily
+          run: root.execCommand
+        }
+
         MiscTab {
           visible: root.activeTab === "misc"
           height: visible ? implicitHeight : 0
           width: parent.width
+          d: root.currentData
           monochromeBarIcon: root.monochromeBarIcon
           foreground: root.foreground
           dim: root.dim
           fontFamily: root.fontFamily
+          run: root.execCommand
           onMonochromeBarIconToggled: root.toggleMonochromeBarIcon()
         }
 

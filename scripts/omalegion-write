@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import os
+import re
+import sys
+from pathlib import Path
+
+PREFIXES = (
+    "/sys/firmware/acpi/platform_profile",
+    "/sys/devices/platform/legion/",
+    "/sys/class/hwmon/",
+    "/sys/class/firmware-attributes/",
+    "/sys/class/leds/",
+    "/sys/class/backlight/",
+    "/sys/class/power_supply/",
+    "/sys/bus/pci/devices/",
+    "/sys/bus/platform/drivers/ideapad_acpi/",
+)
+
+EFIVAR = "/sys/firmware/efi/efivars/FBSWIF-d743491e-f484-4952-a87d-8d5dd189b70c"
+
+# Spectrum keyboard PID families (LLT Devices.GetKeyboardConfig: mask 0xFF00
+# over VID 0x048D): C1xx (gen 10+ Legion), C6xx (gen 11 Legion 5 / LOQ),
+# C9xx (Legion 9 and older Legion, incl. C997).
+HID_PID_FAMILIES = (0xC100, 0xC600, 0xC900)
+HID_REPORT_SIZE = 960
+HIDIOCSFEATURE = 0xC0004806 | (HID_REPORT_SIZE << 16)
+HIDIOCGFEATURE = 0xC0004807 | (HID_REPORT_SIZE << 16)
+
+SAFE_VALUE = re.compile(r"^[A-Za-z0-9._+-]{1,64}$")
+SAFE_HEX = re.compile(r"^[0-9a-fA-F]{1,3840}$")
+
+
+def allowed(path: str) -> bool:
+    if ".." in path:
+        return False
+    candidates = [path]
+    try:
+        resolved = str(Path(path).resolve())
+        if resolved != path:
+            candidates.append(resolved)
+    except OSError:
+        pass
+    for candidate in candidates:
+        if candidate == "/sys/firmware/acpi/platform_profile":
+            return True
+        if any(candidate == p.rstrip("/") or candidate.startswith(p) for p in PREFIXES):
+            return True
+    return False
+
+
+def fail(message: str) -> int:
+    sys.stderr.write(f"omalegion-write: {message}\n")
+    return 1
+
+
+def cmd_write(path: str, value: str) -> int:
+    if not allowed(path):
+        return fail(f"path not allowed: {path}")
+    if not SAFE_VALUE.match(value):
+        return fail(f"value not allowed: {value}")
+    try:
+        with open(path, "w") as fh:
+            fh.write(value)
+    except OSError as exc:
+        return fail(f"{path}: {exc.strerror or exc}")
+    return 0
+
+
+def hid_node_ok(node: str) -> bool:
+    base = os.path.basename(node)
+    if not re.fullmatch(r"hidraw\d+", base):
+        return False
+    if os.path.dirname(node) not in ("/dev",):
+        return False
+    try:
+        with open(f"/sys/class/hidraw/{base}/device/uevent") as fh:
+            uevent = fh.read().upper()
+    except OSError:
+        return False
+    if "048D" not in uevent:
+        return False
+    families = {int(pid, 16) & 0xFF00 for pid in re.findall(r"C[0-9A-F]{3}", uevent)}
+    if not any(fam in families for fam in HID_PID_FAMILIES):
+        return False
+    try:
+        with open(f"/sys/class/hidraw/{base}/device/report_descriptor", "rb") as fh:
+            if b"\x06\x89\xff" not in fh.read():
+                return False
+    except OSError:
+        return False
+    return True
+
+
+def cmd_hid_set(node: str, hexdata: str) -> int:
+    import array
+    import fcntl
+
+    if not hid_node_ok(node):
+        return fail(f"hid device not allowed: {node}")
+    if not SAFE_HEX.match(hexdata) or len(hexdata) > HID_REPORT_SIZE * 2:
+        return fail("hid data not allowed")
+    raw = bytes.fromhex(hexdata).ljust(HID_REPORT_SIZE, b"\x00")
+    try:
+        fd = os.open(node, os.O_RDWR)
+    except OSError as exc:
+        return fail(f"{node}: {exc.strerror or exc}")
+    try:
+        buf = array.array("B", raw)
+        fcntl.ioctl(fd, HIDIOCSFEATURE, buf)
+    except OSError as exc:
+        return fail(f"{node}: {exc.strerror or exc}")
+    finally:
+        os.close(fd)
+    return 0
+
+
+def cmd_hid_get(node: str, report_id: int = 0x07) -> int:
+    import array
+    import fcntl
+
+    if not hid_node_ok(node):
+        return fail(f"hid device not allowed: {node}")
+    try:
+        fd = os.open(node, os.O_RDWR)
+    except OSError as exc:
+        return fail(f"{node}: {exc.strerror or exc}")
+    try:
+        buf = array.array("B", [report_id] + [0] * (HID_REPORT_SIZE - 1))
+        fcntl.ioctl(fd, HIDIOCGFEATURE, buf)
+    except OSError as exc:
+        return fail(f"{node}: {exc.strerror or exc}")
+    finally:
+        os.close(fd)
+    sys.stdout.write(bytes(buf).hex())
+    return 0
+
+
+def cmd_efivar(path: str, hexdata: str) -> int:
+    if path != EFIVAR:
+        return fail(f"efivar not allowed: {path}")
+    if not SAFE_HEX.match(hexdata):
+        return fail("efivar data not allowed")
+    try:
+        with open(path, "wb") as fh:
+            fh.write(bytes.fromhex(hexdata))
+    except OSError as exc:
+        return fail(f"{path}: {exc.strerror or exc}")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) == 2 and argv[1] == "--check":
+        if os.geteuid() != 0:
+            return fail("not running as root")
+        return 0
+    if len(argv) == 4 and argv[1] == "write":
+        return cmd_write(argv[2], argv[3])
+    if len(argv) == 4 and argv[1] == "efivar":
+        return cmd_efivar(argv[2], argv[3])
+    if len(argv) == 4 and argv[1] == "hid-set":
+        return cmd_hid_set(argv[2], argv[3])
+    if len(argv) in (3, 4) and argv[1] == "hid-get":
+        report = int(argv[3], 0) if len(argv) == 4 else 0x07
+        if not 0 <= report <= 255:
+            return fail("report id not allowed")
+        return cmd_hid_get(argv[2], report)
+    if len(argv) >= 4 and argv[1] == "write-pairs" and len(argv) % 2 == 0:
+        for path, value in zip(argv[2::2], argv[3::2]):
+            code = cmd_write(path, value)
+            if code != 0:
+                return code
+        return 0
+    sys.stderr.write(
+        "usage: omalegion-write --check | write <path> <value> | "
+        "write-pairs <path> <value> ... | efivar <path> <hex>\n"
+    )
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -23,14 +23,13 @@ Item {
     fillMode: Image.PreserveAspectFit
     mipmap: true
     smooth: true
-    visible: !root.monochrome
-    layer.enabled: root.monochrome
+    opacity: root.monochrome ? 0 : 1
   }
 
   MultiEffect {
     anchors.fill: logoImage
     source: logoImage
-    visible: root.monochrome
+    opacity: root.monochrome ? 1 : 0
     colorization: 1.0
     colorizationColor: root.tintColor
   }

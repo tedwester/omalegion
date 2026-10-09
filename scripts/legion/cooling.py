@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
 from . import state as plugin_state
@@ -92,9 +91,6 @@ def set_fan_point(index: int, level: int) -> dict:
     if index == LEGION_POINTS and pwm < LEGION_P10_MIN:
         pwm = 127
     result = safe_write(hwmon / f"pwm1_auto_point{index}_pwm", str(pwm))
-    if result["status"] != "success" and result.get("reason") == "Device or resource busy":
-        time.sleep(0.6)
-        result = safe_write(hwmon / f"pwm1_auto_point{index}_pwm", str(pwm))
     if result["status"] != "success":
         return {"status": "error", "message": "Failed to set fan curve point"}
     st["fan_manual"] = True

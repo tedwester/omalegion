@@ -70,7 +70,7 @@ only shows what is available.
   read-only on most kernels.
 - Adjustable 10-point fan curve with per-point levels and RPM, same
   model as Legion Toolkit (speeds only; the temperature steps are fixed
-  in firmware).
+  in firmware). Drag points directly on the graph.
 - Full-speed fans toggle (Custom power mode required).
 - Live thermal sensors and short temperature/fan history charts.
 

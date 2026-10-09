@@ -22,6 +22,7 @@ Column {
   readonly property var thermals: d && d.thermals ? d.thermals : ({})
   readonly property var history: d && d.history ? d.history : ({})
   readonly property var power: d && d.power ? d.power : ({})
+  property double lastCurveSend: 0
 
   function installLegionModule() {
     Quickshell.execDetached(["omarchy", "launch", "terminal",
@@ -252,106 +253,173 @@ Column {
     wrapMode: Text.Wrap
   }
 
-  GridLayout {
-    visible: root.curve.available === true
-    columns: 2
+  Text {
+    textFormat: Text.PlainText
     width: parent.width
-    columnSpacing: Style.space(8)
-    rowSpacing: Style.space(8)
+    visible: root.curve.available === true
+    text: root.power.is_custom === true
+      ? "Drag points on the graph to reshape the curve."
+      : "Switch to Custom power mode to edit the curve."
+    color: root.dim
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    wrapMode: Text.Wrap
+  }
 
-    Repeater {
-      model: root.curvePoints
-      delegate: BorderSurface {
-        required property var modelData
-        Layout.fillWidth: true
-        implicitHeight: curveRow.implicitHeight + Style.space(14)
-        radius: Style.cornerRadius
-        color: Style.hoverFillFor(root.foreground, root.foreground)
-        borderSpec: Border.controlSpec("normal", root.dim, root.accentColor)
-        opacity: root.power.is_custom === true ? 1 : 0.55
+  BorderSurface {
+    id: curveSurface
+    visible: root.curve.available === true
+    width: parent.width
+    implicitHeight: Style.space(200)
+    color: Style.hoverFillFor(root.foreground, root.foreground)
+    borderSpec: Border.controlSpec("normal", root.dim, root.accentColor)
+    radius: Style.cornerRadius
+    opacity: root.power.is_custom === true ? 1 : 0.55
 
-        Row {
-          id: curveRow
-          anchors.left: parent.left
-          anchors.right: parent.right
-          anchors.top: parent.top
-          anchors.margins: Style.space(8)
-          spacing: Style.space(6)
+    property int editIndex: -1
+    property int pendingIndex: -1
+    property int pendingLevel: -1
 
-          Text {
-            textFormat: Text.PlainText
-            anchors.verticalCenter: parent.verticalCenter
-            text: "P" + modelData.index
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            font.bold: true
-          }
+    function pointX(i, w) {
+      var pad = Style.space(16)
+      return pad + (i / 9) * Math.max(1, w - pad * 2)
+    }
 
-          BorderSurface {
-            anchors.verticalCenter: parent.verticalCenter
-            implicitWidth: curveBtnText.implicitWidth + Style.space(12)
-            implicitHeight: curveBtnText.implicitHeight + Style.space(6)
-            radius: Style.cornerRadius
-            color: "transparent"
-            borderSpec: Border.controlSpec("normal", root.dim, root.accentColor)
+    function pointY(l, h) {
+      var pad = Style.space(20)
+      return h - pad - (Math.max(0, Math.min(10, l)) / 10) * Math.max(1, h - pad * 2)
+    }
 
-            Text {
-              id: curveBtnText
-              textFormat: Text.PlainText
-              anchors.centerIn: parent
-              text: "−"
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              font.bold: true
+    function indexAt(x, w) {
+      var pad = Style.space(16)
+      var step = Math.max(1, (w - pad * 2) / 9)
+      return Math.max(1, Math.min(10, Math.round((x - pad) / step) + 1))
+    }
+
+    function levelAt(y, h) {
+      var pad = Style.space(20)
+      return Math.max(0, Math.min(10, Math.round((h - pad - y) / Math.max(1, h - pad * 2) * 10)))
+    }
+
+    function pushPoint(idx, lvl) {
+      var now = Date.now()
+      if (now - root.lastCurveSend < 400 && idx === curveSurface.editIndex) {
+        curveSurface.pendingIndex = idx
+        curveSurface.pendingLevel = lvl
+        return
+      }
+      root.lastCurveSend = now
+      curveSurface.pendingIndex = -1
+      root.run(["--set-fan-point", String(idx), String(lvl)])
+    }
+
+    Canvas {
+      id: curveCanvas
+      anchors.fill: parent
+      anchors.margins: Style.space(8)
+      property var points: root.curvePoints
+      onPointsChanged: requestPaint()
+      onWidthChanged: requestPaint()
+      onHeightChanged: requestPaint()
+
+      onPaint: {
+        var ctx = getContext("2d")
+        ctx.reset()
+        var w = width
+        var h = height - Style.space(18)
+        var pts = root.curvePoints || []
+        if (!pts.length) return
+
+        ctx.strokeStyle = "rgba(255,255,255,0.08)"
+        ctx.fillStyle = "rgba(255,255,255,0.45)"
+        ctx.lineWidth = 1
+        for (var g = 0; g <= 10; g += 2) {
+          var gy = curveSurface.pointY(g, h)
+          ctx.beginPath()
+          ctx.moveTo(0, gy)
+          ctx.lineTo(w, gy)
+          ctx.stroke()
+          ctx.fillText("L" + g, 2, gy - 2)
+        }
+
+        ctx.strokeStyle = Color.accent.toString()
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        for (var i = 0; i < pts.length; i++) {
+          var px = curveSurface.pointX(i, w)
+          var py = curveSurface.pointY(pts[i].level, h)
+          if (i === 0) ctx.moveTo(px, py)
+          else ctx.lineTo(px, py)
+        }
+        ctx.stroke()
+
+        for (var j = 0; j < pts.length; j++) {
+          var dx = curveSurface.pointX(j, w)
+          var dy = curveSurface.pointY(pts[j].level, h)
+          var selected = curveSurface.editIndex === pts[j].index
+          ctx.fillStyle = selected ? Color.accent.toString() : "rgba(255,255,255,0.75)"
+          ctx.beginPath()
+          ctx.arc(dx, dy, selected ? 5 : 3.5, 0, Math.PI * 2)
+          ctx.fill()
+        }
+
+        ctx.fillStyle = "rgba(255,255,255,0.45)"
+        var info = ""
+        if (curveSurface.editIndex > 0) {
+          for (var k = 0; k < pts.length; k++) {
+            if (pts[k].index === curveSurface.editIndex) {
+              info = "P" + pts[k].index + " · L" + pts[k].level + (pts[k].rpm ? " · " + pts[k].rpm + " RPM" : "")
+              break
             }
-
-            MouseArea {
-              anchors.fill: parent
-              enabled: root.power.is_custom === true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: root.run(["--set-fan-point", String(modelData.index), String(modelData.level - 1)])
-            }
           }
+        } else {
+          info = "Tap or drag a point"
+        }
+        ctx.fillText(info, 2, h + Style.space(12))
+      }
+    }
 
-          Text {
-            textFormat: Text.PlainText
-            anchors.verticalCenter: parent.verticalCenter
-            text: "L" + modelData.level + (modelData.rpm ? " · " + modelData.rpm + " RPM" : "")
-            color: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            font.bold: true
-            elide: Text.ElideRight
-          }
+    Timer {
+      id: curveSendTimer
+      interval: 400
+      running: false
+      repeat: false
+      onTriggered: {
+        if (curveSurface.pendingIndex > 0) {
+          root.lastCurveSend = Date.now()
+          root.run(["--set-fan-point", String(curveSurface.pendingIndex), String(curveSurface.pendingLevel)])
+          curveSurface.pendingIndex = -1
+        }
+      }
+    }
 
-          BorderSurface {
-            anchors.verticalCenter: parent.verticalCenter
-            implicitWidth: curveBtnText2.implicitWidth + Style.space(12)
-            implicitHeight: curveBtnText2.implicitHeight + Style.space(6)
-            radius: Style.cornerRadius
-            color: "transparent"
-            borderSpec: Border.controlSpec("normal", root.dim, root.accentColor)
-
-            Text {
-              id: curveBtnText2
-              textFormat: Text.PlainText
-              anchors.centerIn: parent
-              text: "+"
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              font.bold: true
-            }
-
-            MouseArea {
-              anchors.fill: parent
-              enabled: root.power.is_custom === true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: root.run(["--set-fan-point", String(modelData.index), String(modelData.level + 1)])
-            }
-          }
+    MouseArea {
+      anchors.fill: parent
+      enabled: root.power.is_custom === true
+      cursorShape: Qt.PointingHandCursor
+      onPressed: function(mouse) {
+        var idx = curveSurface.indexAt(mouse.x, curveCanvas.width)
+        var lvl = curveSurface.levelAt(mouse.y, curveCanvas.height - Style.space(18))
+        curveSurface.editIndex = idx
+        curveCanvas.requestPaint()
+        curveSurface.pushPoint(idx, lvl)
+        curveSendTimer.restart()
+      }
+      onPositionChanged: function(mouse) {
+        if (!pressed) return
+        var idx = curveSurface.indexAt(mouse.x, curveCanvas.width)
+        var lvl = curveSurface.levelAt(mouse.y, curveCanvas.height - Style.space(18))
+        curveSurface.editIndex = idx
+        curveCanvas.requestPaint()
+        curveSurface.pushPoint(idx, lvl)
+        curveSendTimer.restart()
+      }
+      onReleased: {
+        curveSendTimer.stop()
+        if (curveSurface.pendingIndex > 0) {
+          root.lastCurveSend = Date.now()
+          root.run(["--set-fan-point", String(curveSurface.pendingIndex), String(curveSurface.pendingLevel)])
+          curveSurface.pendingIndex = -1
         }
       }
     }

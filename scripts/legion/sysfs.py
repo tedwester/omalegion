@@ -113,6 +113,14 @@ def safe_write(path: Path | str, value: str) -> dict:
     ok, detail = write_sudo(p, value)
     if ok:
         return {"status": "success", "method": "sudo"}
+    if HELPER.is_file():
+        message = f"Failed to write {value} to {p}"
+        if detail:
+            message += f" ({detail})"
+        result: dict = {"status": "error", "message": message}
+        if detail:
+            result["reason"] = detail
+        return result
     pk_ok, pk_detail = write_pkexec(p, value)
     if pk_ok:
         return {"status": "success", "method": "pkexec"}
@@ -155,9 +163,11 @@ def safe_write_bytes(path: Path | str, data: bytes) -> dict:
     p = Path(path)
     if write_bytes_direct(p, data):
         return {"status": "success", "method": "direct"}
-    ok, detail = write_efivar_sudo(p, data)
+    ok, _ = write_efivar_sudo(p, data)
     if ok:
         return {"status": "success", "method": "sudo"}
+    if HELPER.is_file():
+        return {"status": "error", "message": f"Failed to write {len(data)} bytes to {p}"}
     if write_bytes_pkexec(p, data):
         return {"status": "success", "method": "pkexec"}
     return {"status": "error", "message": f"Failed to write {len(data)} bytes to {p}"}

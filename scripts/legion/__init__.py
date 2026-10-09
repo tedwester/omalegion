@@ -9,7 +9,6 @@ from .input import (
     get_microphone,
     get_speaker,
     get_touchpad,
-    get_winkey,
     set_backlight,
     set_flip_to_start,
     set_fn_lock,
@@ -17,7 +16,6 @@ from .input import (
     set_speaker_mute,
     set_speaker_volume,
     set_touchpad_lock,
-    set_winkey_lock,
 )
 from .power import get_power, is_custom_mode, set_power, set_ppt, sync_power_profiles
 from .system import get_system

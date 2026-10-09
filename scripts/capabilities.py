@@ -139,7 +139,6 @@ def input_dev() -> dict:
         "fn_lock": (IDEAPAD / "fn_lock").exists(),
         "kbd_backlight": kbd,
         "legion_touchpad": (LEGION_DEV / "touchpad").exists(),
-        "legion_winkey": (LEGION_DEV / "winkey").exists(),
         "flip_to_start": FBSWIF.is_file(),
         "camera_power": (IDEAPAD / "camera_power").exists(),
     }

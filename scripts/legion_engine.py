@@ -47,7 +47,6 @@ from legion import (  # noqa: E402
     set_speaker_volume,
     set_touchpad_lock,
     set_usb_charging,
-    set_winkey_lock,
     update_history,
 )
 from legion.battery import BATTERY_MODES, apply_overnight_policy  # noqa: E402
@@ -181,8 +180,6 @@ def dispatch(argv: list[str]) -> dict:
             return {"status": "error", "message": "Bad direction"}
     if action == "--set-touchpad" and arg:
         return set_touchpad_lock(_flag(arg))
-    if action == "--set-winkey" and arg:
-        return set_winkey_lock(_flag(arg))
     if action == "--set-mic-mute" and arg:
         return set_microphone_mute(_flag(arg))
     if action == "--set-speaker-mute" and arg:

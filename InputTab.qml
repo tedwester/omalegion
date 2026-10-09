@@ -15,7 +15,6 @@ Column {
 
   readonly property var input: d && d.input ? d.input : ({})
   readonly property var touchpad: input.touchpad || ({})
-  readonly property var winkey: input.winkey || ({})
   readonly property var microphone: input.microphone || ({})
   readonly property var speaker: input.speaker || ({})
   readonly property var flip: input.flip_to_start || ({})
@@ -57,18 +56,6 @@ Column {
       : "Disable the touchpad in Hyprland (re-apply after a Hyprland reload)."
     checked: touchpad.locked !== true
     onToggled: root.run(["--set-touchpad", touchpad.locked ? "0" : "1"])
-  }
-
-  ToggleRow {
-    visible: winkey.available === true
-    foreground: root.foreground
-    dim: root.dim
-    accentColor: root.accentColor
-    fontFamily: root.fontFamily
-    title: "Windows key"
-    description: "Locks the Windows key in firmware so fullscreen games keep focus."
-    checked: winkey.locked !== true
-    onToggled: root.run(["--set-winkey", winkey.locked ? "0" : "1"])
   }
 
   Text {

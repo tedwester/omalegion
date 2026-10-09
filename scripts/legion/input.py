@@ -10,7 +10,6 @@ from .sysfs import ideapad_dir, read_text, run_cmd, safe_write, safe_write_bytes
 
 IDEAPAD = ideapad_dir()
 LEGION_TOUCHPAD = Path("/sys/devices/platform/legion/touchpad")
-LEGION_WINKEY = Path("/sys/devices/platform/legion/winkey")
 
 FBSWIF_VAR = Path(
     "/sys/firmware/efi/efivars/FBSWIF-d743491e-f484-4952-a87d-8d5dd189b70c"
@@ -232,26 +231,6 @@ def _read_fbswif() -> bytes | None:
     return None
 
 
-def get_winkey() -> dict:
-    # Driver inverts WMI (0 = Win key enabled): sysfs 1 = enabled,
-    # 0 = disabled. Matches LLT WinKeyFeature semantics.
-    if not LEGION_WINKEY.exists():
-        return {"available": False, "locked": False}
-    return {"available": True, "locked": read_text(LEGION_WINKEY) == "0"}
-
-
-def set_winkey_lock(locked: bool) -> dict:
-    if not LEGION_WINKEY.exists():
-        return {"status": "error", "message": "Win key control needs the legion-laptop module"}
-    result = safe_write(LEGION_WINKEY, "0" if locked else "1")
-    if result["status"] == "success":
-        if read_text(LEGION_WINKEY) != ("0" if locked else "1"):
-            return {"status": "error", "message": "Firmware did not apply the Win key change"}
-        result["winkey_lock"] = bool(locked)
-        result["message"] = "Windows key locked" if locked else "Windows key enabled"
-    return result
-
-
 def get_flip_to_start() -> dict:
     raw = _read_fbswif()
     if raw is None:
@@ -304,7 +283,6 @@ def get_input() -> dict:
             break
 
     info["touchpad"] = get_touchpad()
-    info["winkey"] = get_winkey()
     info["microphone"] = get_microphone()
     info["speaker"] = get_speaker()
     info["flip_to_start"] = get_flip_to_start()

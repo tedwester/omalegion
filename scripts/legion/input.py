@@ -290,14 +290,6 @@ def get_input() -> dict:
         "available": False,
         "reason": "camera_power is read-only on this firmware",
     }
-    info["instant_boot"] = {
-        "available": False,
-        "reason": "InstantBoot is WMI flags-only (no Linux sysfs)",
-    }
-    info["its_mode"] = {
-        "available": False,
-        "reason": "ITS needs Windows LITSSVC services; use Power modes",
-    }
     return info
 
 

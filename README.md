@@ -35,9 +35,7 @@ The bar and panel logo is from
 - Microphone and speaker mute, plus speaker volume presets (via PipeWire).
 - Flip to Start: boot the laptop by opening the lid (UEFI setting).
 
-Linux does not expose firmware interfaces for the Windows-only Legion
-Toolkit features (Instant Boot, ITS thermal modes), so those are not
-available here. Every other control checks what your machine supports and
+Every control checks what your machine supports and
 only shows what is available.
 
 ### Power

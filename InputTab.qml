@@ -18,8 +18,6 @@ Column {
   readonly property var microphone: input.microphone || ({})
   readonly property var speaker: input.speaker || ({})
   readonly property var flip: input.flip_to_start || ({})
-  readonly property var instantBoot: input.instant_boot || ({})
-  readonly property var itsMode: input.its_mode || ({})
 
   width: parent ? parent.width : implicitWidth
   spacing: Style.space(10)
@@ -148,36 +146,5 @@ Column {
     description: "Opening the lid boots the laptop (same UEFI setting as Legion Toolkit)."
     checked: flip.enabled === true
     onToggled: root.run(["--set-flip-to-start", flip.enabled ? "0" : "1"])
-  }
-
-  Text {
-    textFormat: Text.PlainText
-    text: "Not on Linux"
-    color: root.foreground
-    font.family: root.fontFamily
-    font.pixelSize: Style.font.body
-    font.bold: true
-  }
-
-  ToggleRow {
-    foreground: root.foreground
-    dim: root.dim
-    accentColor: root.accentColor
-    fontFamily: root.fontFamily
-    title: "Instant Boot"
-    description: instantBoot.reason || "Firmware-only in Legion Toolkit."
-    checked: false
-    enabled: false
-  }
-
-  ToggleRow {
-    foreground: root.foreground
-    dim: root.dim
-    accentColor: root.accentColor
-    fontFamily: root.fontFamily
-    title: "ITS thermal modes"
-    description: itsMode.reason || "Needs Windows services; use Power modes."
-    checked: false
-    enabled: false
   }
 }

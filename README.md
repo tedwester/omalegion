@@ -95,8 +95,11 @@ only shows what is available.
 ## Requirements
 
 - Omarchy 4 (Quattro) or newer with the current shell plugin API.
-- A Lenovo Legion laptop with Linux sysfs support (`lenovo-wmi-gamezone` or
-  equivalent `platform_profile` interface).
+- A Lenovo Legion or LOQ laptop with Linux sysfs support
+  (`lenovo-wmi-gamezone` or equivalent `platform_profile` interface).
+  Other Lenovo laptops (Yoga, IdeaPad) work with graceful degradation:
+  monitoring, battery, and input controls function while Legion-only
+  firmware features hide themselves.
 - `python3` on `PATH` (used by the bundled hardware engine).
 - `pkexec` (PolicyKit) for system writes when direct writes are not
   permitted, and `sudo` for the optional passwordless setup in Misc.

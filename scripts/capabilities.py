@@ -7,6 +7,12 @@ from pathlib import Path
 
 LEGION_DEV = Path("/sys/devices/platform/legion")
 IDEAPAD = Path("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00")
+try:
+    from legion.sysfs import ideapad_dir
+
+    IDEAPAD = ideapad_dir()
+except OSError:
+    pass
 FBSWIF = Path("/sys/firmware/efi/efivars/FBSWIF-d743491e-f484-4952-a87d-8d5dd189b70c")
 
 

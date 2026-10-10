@@ -32,12 +32,21 @@ def _touchpad_names() -> list[str]:
     for group in ("mice", "keyboards", "tablets", "touch"):
         for dev in devices.get(group, []) or []:
             name = dev.get("name") or ""
+            if not isinstance(name, str) or not name:
+                continue
+            # Device names are embedded into a Lua snippet; reject control
+            # characters so a hostile/comprised compositor reply cannot break
+            # out of the string context.
+            if any(ord(c) < 32 or ord(c) == 127 for c in name):
+                continue
             if "touchpad" in name.lower() and name not in names:
                 names.append(name)
     return names
 
 
 def _hypr_eval(lua: str) -> bool:
+    if "\n" in lua or "\r" in lua or "\x00" in lua:
+        return False
     result = run_cmd(["hyprctl", "eval", lua], timeout=3.0)
     return result is not None and "ok" in result.lower()
 

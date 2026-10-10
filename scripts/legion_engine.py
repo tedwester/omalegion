@@ -167,7 +167,7 @@ def dispatch(argv: list[str]) -> dict:
             return {"status": "error", "message": "Bad speed or direction"}
         return set_keyboard_effect(arg, color, speed, direction)
     if action == "--set-kbd-keys" and arg and arg2:
-        return set_keyboard_keys([int(x) for x in arg.split(",") if x.strip().isdigit()], arg2)
+        return set_keyboard_keys([int(x) for x in arg.split(",")[:512] if x.strip().isdigit()], arg2)
     if action == "--set-kbd-speed" and arg:
         try:
             return set_keyboard_param(speed=int(arg))

@@ -25,7 +25,14 @@ fi
 install -m 0755 "$HELPER_SRC" "$HELPER_DST"
 
 TMP_FILE="$(mktemp)"
-printf '%s ALL=(root) NOPASSWD: %s *\n' "$USER_NAME" "$HELPER_DST" > "$TMP_FILE"
+{
+  printf '%s ALL=(root) NOPASSWD: %s --check\n' "$USER_NAME" "$HELPER_DST"
+  printf '%s ALL=(root) NOPASSWD: %s write *\n' "$USER_NAME" "$HELPER_DST"
+  printf '%s ALL=(root) NOPASSWD: %s write-pairs *\n' "$USER_NAME" "$HELPER_DST"
+  printf '%s ALL=(root) NOPASSWD: %s efivar *\n' "$USER_NAME" "$HELPER_DST"
+  printf '%s ALL=(root) NOPASSWD: %s hid-set *\n' "$USER_NAME" "$HELPER_DST"
+  printf '%s ALL=(root) NOPASSWD: %s hid-get *\n' "$USER_NAME" "$HELPER_DST"
+} > "$TMP_FILE"
 chmod 0440 "$TMP_FILE"
 
 if ! visudo -c -f "$TMP_FILE" >/dev/null 2>&1; then

@@ -107,7 +107,7 @@ def get_layout() -> dict:
 
 def _direct_set(node: str, data: bytes) -> bool:
     try:
-        fd = os.open(node, os.O_RDWR)
+        fd = os.open(node, os.O_RDWR | os.O_NOFOLLOW)
     except OSError:
         return False
     try:
@@ -122,7 +122,7 @@ def _direct_set(node: str, data: bytes) -> bool:
 
 def _direct_get(node: str, report_id: int = 0x07) -> bytes | None:
     try:
-        fd = os.open(node, os.O_RDWR)
+        fd = os.open(node, os.O_RDWR | os.O_NOFOLLOW)
     except OSError:
         return None
     try:
@@ -474,7 +474,10 @@ def set_keys(keycodes: list[int], color: str) -> dict:
     node = find_device()
     if not node:
         return {"status": "error", "message": "Spectrum keyboard not found"}
-    keys = [int(kc) for kc in keycodes if 0 < int(kc) < 65535]
+    try:
+        keys = [int(kc) for kc in list(keycodes)[:512] if 0 < int(kc) < 65535]
+    except (TypeError, ValueError):
+        return {"status": "error", "message": "Bad key selection"}
     if not keys:
         return {"status": "error", "message": "No keys selected"}
     profile = _current_profile(node)

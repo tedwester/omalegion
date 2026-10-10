@@ -4,7 +4,26 @@ import re
 import subprocess
 from pathlib import Path
 
-_SAFE_VALUE = re.compile(r"^[A-Za-z0-9._+-]+$")
+_SAFE_VALUE = re.compile(r"^[A-Za-z0-9._+-]{1,64}$")
+
+
+def _safe_sysfs_path(path: Path | str) -> bool:
+    """Literal path allowlist for the pkexec fallback.
+
+    Mirrors the helper's confinement: absolute, normalized, no parent
+    escapes, and confined to /sys. The helper re-validates everything
+    sudo-side, but the pkexec path must not be a traversal vector either.
+    """
+    import os
+
+    s = str(path)
+    if not s or "\x00" in s:
+        return False
+    if not os.path.isabs(s):
+        return False
+    if ".." in Path(s).parts or ".." in s:
+        return False
+    return os.path.normpath(s).startswith("/sys/")
 
 HELPER = Path("/usr/local/bin/omalegion-write")
 
@@ -51,7 +70,7 @@ def write_direct(path: Path, value: str) -> bool:
 
 
 def write_pkexec(path: Path, value: str) -> tuple[bool, str]:
-    if not str(path).startswith("/sys/") or not _SAFE_VALUE.match(str(value)):
+    if not _safe_sysfs_path(path) or not _SAFE_VALUE.match(str(value)):
         return False, "refused"
     try:
         result = subprocess.run(
@@ -137,6 +156,10 @@ def write_bytes_direct(path: Path, data: bytes) -> bool:
 
 
 def write_bytes_pkexec(path: Path, data: bytes) -> bool:
+    if not _safe_sysfs_path(path):
+        return False
+    if len(data) > 1920:
+        return False
     try:
         result = subprocess.run(
             ["pkexec", "python3", "-c",
@@ -158,9 +181,6 @@ def safe_write_bytes(path: Path | str, data: bytes) -> dict:
     ok, _ = write_efivar_sudo(p, data)
     if ok:
         return {"status": "success", "method": "sudo"}
-    if write_bytes_pkexec(p, data):
-        return {"status": "success", "method": "pkexec"}
-    return {"status": "error", "message": f"Failed to write {len(data)} bytes to {p}"}
     if write_bytes_pkexec(p, data):
         return {"status": "success", "method": "pkexec"}
     return {"status": "error", "message": f"Failed to write {len(data)} bytes to {p}"}

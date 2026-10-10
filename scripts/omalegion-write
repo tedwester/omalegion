@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 
@@ -32,39 +33,148 @@ SAFE_VALUE = re.compile(r"^[A-Za-z0-9._+-]{1,64}$")
 SAFE_HEX = re.compile(r"^[0-9a-fA-F]{1,3840}$")
 
 
-def allowed(path: str) -> bool:
-    if ".." in path:
-        return False
-    candidates = [path]
-    try:
-        resolved = str(Path(path).resolve())
-        if resolved != path:
-            candidates.append(resolved)
-    except OSError:
-        pass
-    for candidate in candidates:
-        if candidate == "/sys/firmware/acpi/platform_profile":
-            return True
-        if any(candidate == p.rstrip("/") or candidate.startswith(p) for p in PREFIXES):
-            return True
-    return False
-
-
 def fail(message: str) -> int:
     sys.stderr.write(f"omalegion-write: {message}\n")
     return 1
 
 
+# ---------------------------------------------------------------------------
+# Path confinement
+#
+# The helper runs as root via a NOPASSWD sudoers rule with caller-chosen
+# paths, so every write is bound to an opened fd whose real target is
+# re-validated *after* open. Checking a path string and then opening the
+# same string is a TOCTOU (a swapped symlink lands the write outside the
+# allowlist), so we never trust the pre-open resolution alone.
+# ---------------------------------------------------------------------------
+
+def _matches_allowlist(path: str) -> bool:
+    if path == "/sys/firmware/acpi/platform_profile":
+        return True
+    return any(path == p.rstrip("/") or path.startswith(p) for p in PREFIXES)
+
+
+def _literal_allowed(path: str) -> bool:
+    """The caller-supplied string itself must live inside the allowlist.
+
+    Attackers cannot create entries under /sys (root-owned sysfs), so
+    requiring the literal path here — not just its resolved target —
+    removes caller-planted symlinks outside /sys (e.g. /tmp/link) from
+    ever reaching open().
+    """
+    if not path or "\x00" in path:
+        return False
+    if not os.path.isabs(path):
+        return False
+    if ".." in Path(path).parts:
+        return False
+    if ".." in path:
+        return False
+    return _matches_allowlist(path)
+
+
+def _fd_target(fd: int) -> str | None:
+    try:
+        return os.readlink(f"/proc/self/fd/{fd}")
+    except OSError:
+        return None
+
+
+def _fd_target_ok(literal: str, target: str | None) -> bool:
+    """Bind the opened fd to the allowlist.
+
+    The fd target must be what this exact literal resolves to *right now*
+    (no swap between check and open), and it must land inside the managed
+    hardware namespace. /sys/class and /sys/bus entries are driver-owned
+    symlinks into /sys/devices, so those resolve outside PREFIXES by
+    design; they are accepted only when reached through an allowlisted
+    literal, which unprivileged callers cannot forge under /sys.
+    """
+    if not target:
+        return False
+    try:
+        expected = os.path.realpath(literal)
+    except OSError:
+        return False
+    if target != expected:
+        return False
+    if _matches_allowlist(target):
+        return True
+    if not target.startswith("/sys/"):
+        return False
+    return literal.startswith(("/sys/class/", "/sys/bus/"))
+
+
+def _open_verified(path: str) -> int | None:
+    """Open for writing and return an fd bound to the allowlist, else None.
+
+    Opens without O_TRUNC so no bytes are cut before verification; the
+    caller truncates the *verified fd* instead.
+    """
+    if not _literal_allowed(path):
+        return None
+    try:
+        fd = os.open(path, os.O_WRONLY)
+    except OSError:
+        return None
+    if not _fd_target_ok(path, _fd_target(fd)):
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        return None
+    try:
+        st = os.fstat(fd)
+    except OSError:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        return None
+    if stat.S_ISDIR(st.st_mode):
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        return None
+    return fd
+
+
+def _write_fd(fd: int, data: bytes) -> bool:
+    try:
+        try:
+            os.ftruncate(fd, 0)
+        except OSError:
+            # sysfs/proc nodes reject truncate; plain writes still work.
+            pass
+        os.write(fd, data)
+        return True
+    except OSError:
+        return False
+    finally:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+
+def _write_text_verified(path: str, value: str) -> bool:
+    fd = _open_verified(path)
+    if fd is None:
+        return False
+    return _write_fd(fd, value.encode())
+
+
 def cmd_write(path: str, value: str) -> int:
-    if not allowed(path):
-        return fail(f"path not allowed: {path}")
     if not SAFE_VALUE.match(value):
         return fail(f"value not allowed: {value}")
-    try:
-        with open(path, "w") as fh:
-            fh.write(value)
-    except OSError as exc:
-        return fail(f"{path}: {exc.strerror or exc}")
+    if not _literal_allowed(path):
+        return fail(f"path not allowed: {path}")
+    fd = _open_verified(path)
+    if fd is None:
+        return fail(f"path not allowed: {path}")
+    if not _write_fd(fd, value.encode()):
+        return fail(f"{path}: write failed")
     return 0
 
 
@@ -93,19 +203,70 @@ def hid_node_ok(node: str) -> bool:
     return True
 
 
+def _hid_expected_rdev(base: str) -> int | None:
+    """Device number (st_rdev) the kernel reports for this hidraw node."""
+    try:
+        raw = Path(f"/sys/class/hidraw/{base}/device/dev").read_text().strip()
+    except OSError:
+        try:
+            raw = Path(f"/sys/class/hidraw/{base}/dev").read_text().strip()
+        except OSError:
+            return None
+    try:
+        major_s, minor_s = raw.split(":")
+        return os.makedev(int(major_s), int(minor_s))
+    except (ValueError, OverflowError):
+        return None
+
+
+def _open_hid_verified(node: str) -> int | None:
+    """Open a hidraw node and bind the fd to the validated device.
+
+    /dev is root-owned so callers cannot plant symlinks there, but the fd
+    is still checked with O_NOFOLLOW plus a kernel device-number match so
+    a swapped node can never receive another device's report.
+    """
+    if not hid_node_ok(node):
+        return None
+    base = os.path.basename(node)
+    try:
+        fd = os.open(node, os.O_RDWR | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+    except OSError:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        return None
+    if not stat.S_ISCHR(st.st_mode):
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        return None
+    expected = _hid_expected_rdev(base)
+    if expected is not None and st.st_rdev != expected:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        return None
+    return fd
+
+
 def cmd_hid_set(node: str, hexdata: str) -> int:
     import array
     import fcntl
 
-    if not hid_node_ok(node):
-        return fail(f"hid device not allowed: {node}")
     if not SAFE_HEX.match(hexdata) or len(hexdata) > HID_REPORT_SIZE * 2:
         return fail("hid data not allowed")
     raw = bytes.fromhex(hexdata).ljust(HID_REPORT_SIZE, b"\x00")
-    try:
-        fd = os.open(node, os.O_RDWR)
-    except OSError as exc:
-        return fail(f"{node}: {exc.strerror or exc}")
+    fd = _open_hid_verified(node)
+    if fd is None:
+        return fail(f"hid device not allowed: {node}")
     try:
         buf = array.array("B", raw)
         fcntl.ioctl(fd, HIDIOCSFEATURE, buf)
@@ -120,12 +281,9 @@ def cmd_hid_get(node: str, report_id: int = 0x07) -> int:
     import array
     import fcntl
 
-    if not hid_node_ok(node):
+    fd = _open_hid_verified(node)
+    if fd is None:
         return fail(f"hid device not allowed: {node}")
-    try:
-        fd = os.open(node, os.O_RDWR)
-    except OSError as exc:
-        return fail(f"{node}: {exc.strerror or exc}")
     try:
         buf = array.array("B", [report_id] + [0] * (HID_REPORT_SIZE - 1))
         fcntl.ioctl(fd, HIDIOCGFEATURE, buf)
@@ -142,12 +300,30 @@ def cmd_efivar(path: str, hexdata: str) -> int:
         return fail(f"efivar not allowed: {path}")
     if not SAFE_HEX.match(hexdata):
         return fail("efivar data not allowed")
+    data = bytes.fromhex(hexdata)
     try:
-        with open(path, "wb") as fh:
-            fh.write(bytes.fromhex(hexdata))
+        fd = os.open(path, os.O_WRONLY)
     except OSError as exc:
         return fail(f"{path}: {exc.strerror or exc}")
-    return 0
+    try:
+        target = _fd_target(fd)
+        try:
+            expected = os.path.realpath(path)
+        except OSError:
+            expected = None
+        if target != expected or target != EFIVAR:
+            return fail(f"efivar not allowed: {path}")
+        if not _write_fd(fd, data):
+            return fail(f"{path}: write failed")
+        # _write_fd closed fd on success; on failure it also closed it.
+        # Avoid double-close by returning directly.
+        return 0
+    except OSError as exc:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        return fail(f"{path}: {exc.strerror or exc}")
 
 
 def main(argv: list[str]) -> int:

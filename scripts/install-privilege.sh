@@ -56,10 +56,16 @@ else
 fi
 
 UDEV_DST="/etc/udev/rules.d/99-omalegion-rgb.rules"
+# Session-scoped access: the keyboard is handed to whoever is physically
+# logged in (systemd-logind ACLs), not opened to every local account.
+# Other users keep only the per-user sudo-gated helper path, and only if a
+# rule was installed for them. Never use a world-writable mode here: that
+# would grant all local accounts raw HID access and bypass the helper's
+# authorization.
 {
-  echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="048d", ATTRS{idProduct}=="c1*", MODE="0666"'
-  echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="048d", ATTRS{idProduct}=="c6*", MODE="0666"'
-  echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="048d", ATTRS{idProduct}=="c9*", MODE="0666"'
+  echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="048d", ATTRS{idProduct}=="c1*", TAG+="uaccess"'
+  echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="048d", ATTRS{idProduct}=="c6*", TAG+="uaccess"'
+  echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="048d", ATTRS{idProduct}=="c9*", TAG+="uaccess"'
 } > "$UDEV_DST"
 chmod 0644 "$UDEV_DST"
 udevadm control --reload-rules >/dev/null 2>&1 || true

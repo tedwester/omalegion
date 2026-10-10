@@ -87,8 +87,12 @@ only shows what is available.
 - Monochrome bar icon toggle.
 - Passwordless hardware control: one-time setup (one password prompt) that
   installs a restricted sudo rule so every hardware setting applies without
-  further prompts. To remove it later, delete `/etc/sudoers.d/omalegion`
-  and `/usr/local/bin/omalegion-write`.
+  further prompts. The sudo rule is per-user and limited to the bundled
+  helper's subcommands; keyboard lighting access follows your login session
+  (systemd `uaccess`), so other local accounts get no raw keyboard access
+  from this setup. To remove it later, delete `/etc/sudoers.d/omalegion`,
+  `/usr/local/bin/omalegion-write`, and
+  `/etc/udev/rules.d/99-omalegion-rgb.rules`.
 
 ## Requirements
 
@@ -172,6 +176,13 @@ if you no longer want the stored data.
   fan curve, and keyboard lighting preferences).
 - `~/.local/state/omarchy/powerprofiles/ac` and `.../battery` to remember
   the chosen battery profile per power source, like Omarchy's own panel.
+- Only via the optional passwordless setup in Misc (one password prompt):
+  `/usr/local/bin/omalegion-write` (root-owned helper),
+  `/etc/sudoers.d/omalegion` (per-user, helper subcommands only), and
+  `/etc/udev/rules.d/99-omalegion-rgb.rules` (keyboard access scoped to
+  your login session). Re-run the setup after updates so the installed
+  helper matches this repository; remove the three files above to fully
+  undo the setup.
 
 Enabling or disabling the plugin does not modify your bar layout beyond what
 Omarchy's plugin enable flow already manages.

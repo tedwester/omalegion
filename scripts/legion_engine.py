@@ -101,7 +101,12 @@ def _to_int(value: str) -> int | None:
 
 
 def dispatch(argv: list[str]) -> dict:
-    action = argv[0]
+    # Defensive: QML signal marshaling once stringified ["--set-power", "x"]
+    # into a single comma-joined arg ("--set-power,x"). Split it back so the
+    # action is never "Unknown action: --set-power,balanced".
+    if len(argv) == 1 and "," in argv[0]:
+        argv = [part for part in argv[0].split(",") if part != ""]
+    action = argv[0] if argv else ""
     arg = argv[1] if len(argv) > 1 else None
     arg2 = argv[2] if len(argv) > 2 else None
 

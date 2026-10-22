@@ -75,7 +75,10 @@ Panel {
   function execCommand(args) {
     if (controlProc.running) return
     var tail = []
-    if (Array.isArray(args)) {
+    // NOTE: do not gate on Array.isArray() — arrays crossing the QML signal
+    // boundary can arrive as QVariantList-likes where Array.isArray is false,
+    // and String(array) would collapse to "--set-power,balanced".
+    if (args !== undefined && args !== null && typeof args !== "string" && typeof args.length === "number") {
       for (var i = 0; i < args.length; i++)
         tail.push(String(args[i]))
     } else if (args !== undefined && args !== null) {
@@ -408,7 +411,7 @@ Panel {
           dim: root.dim
           urgent: root.urgent
           fontFamily: root.fontFamily
-          onCommandRequested: function(args) { root.execCommand(args) }
+          run: root.execCommand
         }
 
         GpuTab {

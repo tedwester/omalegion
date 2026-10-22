@@ -12,7 +12,7 @@ Column {
   property color urgent
   property color accentColor: Color.accent
   property string fontFamily
-  signal commandRequested(var args)
+  property var run
 
   function installLegionModule() {
     Quickshell.execDetached(["omarchy", "launch", "terminal",
@@ -76,7 +76,7 @@ Column {
         : (modelData.selected ? "Active" : "Apply " + modelData.label)
       onActivated: {
         if (modelData.needs_module === true) root.installLegionModule()
-        else root.commandRequested(["--set-power", modelData.profile])
+        else root.run(["--set-power", modelData.profile])
       }
     }
   }
@@ -118,7 +118,7 @@ Column {
       fontFamily: root.fontFamily
       onPicked: function(watts) {
         if (custom.pl1 && custom.pl1.id)
-          root.commandRequested(["--set-ppt", String(custom.pl1.id), String(watts)])
+          root.run(["--set-ppt", String(custom.pl1.id), String(watts)])
       }
     }
 
@@ -133,7 +133,7 @@ Column {
       fontFamily: root.fontFamily
       onPicked: function(watts) {
         if (custom.pl2 && custom.pl2.id)
-          root.commandRequested(["--set-ppt", String(custom.pl2.id), String(watts)])
+          root.run(["--set-ppt", String(custom.pl2.id), String(watts)])
       }
     }
   }

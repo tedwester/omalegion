@@ -13,6 +13,7 @@ BarWidget {
     ? panelItem.popoutSwitchClosing === true
     : false
   readonly property bool monochromeBarIcon: setting("monochromeBarIcon", false) === true
+  readonly property bool barTransparent: root.bar ? root.bar.transparent === true : false
 
   function injectPanel() {
     var target = panelItem
@@ -106,6 +107,7 @@ BarWidget {
         iconSize: Style.bar.iconCanvas
         statusColor: root.badgeColor
         monochrome: root.monochromeBarIcon
+        transparent: root.barTransparent
         tintColor: root.bar ? root.bar.barForeground : Color.foreground
       }
     }

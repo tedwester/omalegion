@@ -9,7 +9,15 @@ Item {
   property color statusColor: Color.foreground
   property bool showStatusBadge: true
   property bool monochrome: false
+  property bool transparent: false
   property color tintColor: Color.foreground
+
+  // Dark tints crush the two-tone logo to near-black (gray * near-black ~= black).
+  // Opaque keeps the original flat tint exactly; transparent just lightens a
+  // dark tint so the center/outline grays stay in the same ratio, no glow.
+  readonly property real tintLuma: 0.2126 * tintColor.r + 0.7152 * tintColor.g + 0.0722 * tintColor.b
+  readonly property bool tintIsDark: tintLuma < 0.5
+  readonly property color effectiveTint: (root.monochrome && root.transparent && root.tintIsDark) ? Qt.lighter(root.tintColor, 2.4) : root.tintColor
 
   width: iconSize
   height: iconSize
@@ -31,7 +39,9 @@ Item {
     source: logoImage
     opacity: root.monochrome ? 1 : 0
     colorization: 1.0
-    colorizationColor: root.tintColor
+    colorizationColor: root.effectiveTint
+    brightness: (root.monochrome && root.transparent && root.tintIsDark) ? 0.08 : 0.0
+    contrast: (root.monochrome && root.transparent && root.tintIsDark) ? -0.25 : 0.0
   }
 
   Rectangle {
